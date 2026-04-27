@@ -28,5 +28,11 @@ createInertiaApp({
     },
 });
 
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        void navigator.serviceWorker.register('/sw.js');
+    });
+}
+
 // This will set light / dark mode on load...
 initializeTheme();

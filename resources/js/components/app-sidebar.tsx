@@ -1,8 +1,11 @@
 import { Link } from '@inertiajs/react';
 import {
+    BellRing,
+    Briefcase,
     CalendarClock,
     CalendarDays,
     CalendarRange,
+    ClipboardList,
     GitBranch,
     HandCoins,
     LayoutGrid,
@@ -22,12 +25,13 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { index as attendancesIndex } from '@/routes/hris/attendances';
 import { index as employeesIndex } from '@/routes/hris/employees';
+import { index as kasbonsIndex } from '@/routes/hris/kasbons';
 import { index as leavesIndex } from '@/routes/hris/leaves';
 import { index as overtimesIndex } from '@/routes/hris/overtimes';
-import { index as kasbonsIndex } from '@/routes/hris/kasbons';
 import { index as payrollsIndex } from '@/routes/hris/payrolls';
 import { index as schedulesIndex } from '@/routes/hris/schedules';
 import type { NavGroup } from '@/types';
@@ -52,9 +56,24 @@ const mainNavGroups: NavGroup[] = [
                 icon: UsersRound,
             },
             {
-                title: 'Org Chart',
+                title: 'Rekrutmen',
+                href: '/hris/recruitment',
+                icon: Briefcase,
+            },
+            {
+                title: 'Struktur Organisasi',
                 href: '/hris/organization-chart',
                 icon: GitBranch,
+            },
+            {
+                title: 'Notifikasi',
+                href: '/hris/notifications',
+                icon: BellRing,
+            },
+            {
+                title: 'Survey',
+                href: '/hris/surveys',
+                icon: ClipboardList,
             },
         ],
     },
@@ -107,7 +126,7 @@ export function AppSidebar() {
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href={dashboard()} prefetch>
+                            <Link href={toUrl(dashboard())} prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>

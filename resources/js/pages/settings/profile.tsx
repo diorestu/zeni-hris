@@ -18,7 +18,7 @@ import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Profile settings',
+        title: 'Pengaturan profil',
         href: edit(),
     },
 ];
@@ -34,9 +34,6 @@ export default function Profile({
         name: string;
         details: string | null;
         logo_url: string | null;
-        employee_code_prefix: string;
-        employee_code_digits: number;
-        employee_code_next_number: number;
     };
 }) {
     const { auth } = usePage().props;
@@ -55,16 +52,16 @@ export default function Profile({
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Profile settings" />
+            <Head title="Pengaturan profil" />
 
-            <h1 className="sr-only">Profile settings</h1>
+            <h1 className="sr-only">Pengaturan profil</h1>
 
             <SettingsLayout>
                 <div className="space-y-6">
                     <Heading
                         variant="small"
-                        title="Profile information"
-                        description="Update your name and email address"
+                        title="Informasi profil"
+                        description="Perbarui nama, alamat email, dan nomor WhatsApp Anda"
                     />
 
                     <Form
@@ -96,7 +93,7 @@ export default function Profile({
                                 </div>
 
                                 <div className="grid gap-2">
-                                    <Label htmlFor="email">Email address</Label>
+                                    <Label htmlFor="email">Alamat email</Label>
 
                                     <Input
                                         id="email"
@@ -106,7 +103,7 @@ export default function Profile({
                                         name="email"
                                         required
                                         autoComplete="username"
-                                        placeholder="Email address"
+                                        placeholder="Alamat email"
                                     />
 
                                     <InputError
@@ -115,28 +112,60 @@ export default function Profile({
                                     />
                                 </div>
 
+                                <div className="grid gap-2">
+                                    <Label htmlFor="phone">Nomor WhatsApp</Label>
+
+                                    <Input
+                                        id="phone"
+                                        type="tel"
+                                        className="mt-1 block w-full"
+                                        defaultValue={
+                                            (auth.user.phone as string | null | undefined) ??
+                                            ''
+                                        }
+                                        name="phone"
+                                        required
+                                        autoComplete="tel"
+                                        placeholder="081234567890"
+                                    />
+
+                                    <InputError
+                                        className="mt-2"
+                                        message={errors.phone}
+                                    />
+
+                                    {(auth.user.phone_verified_at as
+                                        | string
+                                        | null
+                                        | undefined) === null ? (
+                                        <p className="text-sm text-amber-600">
+                                            Nomor WhatsApp belum terverifikasi.
+                                        </p>
+                                    ) : null}
+                                </div>
+
                                 {mustVerifyEmail &&
                                     auth.user.email_verified_at === null && (
                                         <div>
                                             <p className="-mt-4 text-sm text-muted-foreground">
-                                                Your email address is
-                                                unverified.{' '}
+                                                 Alamat email Anda belum
+                                                terverifikasi.{' '}
                                                 <Link
                                                     href={send()}
                                                     as="button"
                                                     className="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                                                 >
-                                                    Click here to resend the
-                                                    verification email.
+                                                    Klik di sini untuk mengirim
+                                                    ulang verifikasi email.
                                                 </Link>
                                             </p>
 
                                             {status ===
                                                 'verification-link-sent' && (
                                                 <div className="mt-2 text-sm font-medium text-green-600">
-                                                    A new verification link has
-                                                    been sent to your email
-                                                    address.
+                                                     Tautan verifikasi baru
+                                                     telah dikirim ke alamat
+                                                     email Anda.
                                                 </div>
                                             )}
                                         </div>
@@ -158,7 +187,7 @@ export default function Profile({
                                         leaveTo="opacity-0"
                                     >
                                         <p className="text-sm text-neutral-600">
-                                            Saved
+                                             Tersimpan
                                         </p>
                                     </Transition>
                                 </div>
@@ -168,8 +197,8 @@ export default function Profile({
 
                     <Heading
                         variant="small"
-                        title="Company information"
-                        description="Update company name and company details"
+                        title="Informasi perusahaan"
+                        description="Perbarui nama dan detail perusahaan"
                     />
 
                     <Form
@@ -183,7 +212,7 @@ export default function Profile({
                             <>
                                 <div className="grid gap-2">
                                     <Label htmlFor="company_name">
-                                        Company name
+                                        Nama perusahaan
                                     </Label>
 
                                     <Input
@@ -192,7 +221,7 @@ export default function Profile({
                                         defaultValue={company.name}
                                         name="name"
                                         required
-                                        placeholder="Company name"
+                                        placeholder="Nama perusahaan"
                                     />
 
                                     <InputError
@@ -203,7 +232,7 @@ export default function Profile({
 
                                 <div className="grid gap-2">
                                     <Label htmlFor="company_details">
-                                        Company details
+                                        Detail perusahaan
                                     </Label>
 
                                     <textarea
@@ -211,7 +240,7 @@ export default function Profile({
                                         className="mt-1 min-h-28 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                                         defaultValue={company.details ?? ''}
                                         name="details"
-                                        placeholder="Address, NPWP, contact, or other company details"
+                                        placeholder="Alamat, NPWP, kontak, atau detail perusahaan lainnya"
                                     />
 
                                     <InputError
@@ -220,78 +249,9 @@ export default function Profile({
                                     />
                                 </div>
 
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="employee_code_prefix">
-                                            Employee code prefix
-                                        </Label>
-                                        <Input
-                                            id="employee_code_prefix"
-                                            className="mt-1 block w-full"
-                                            defaultValue={
-                                                company.employee_code_prefix
-                                            }
-                                            name="employee_code_prefix"
-                                            placeholder="EMP"
-                                            required
-                                        />
-                                        <InputError
-                                            className="mt-2"
-                                            message={
-                                                errors.employee_code_prefix
-                                            }
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="employee_code_digits">
-                                            Number digits
-                                        </Label>
-                                        <Input
-                                            id="employee_code_digits"
-                                            type="number"
-                                            min={1}
-                                            max={8}
-                                            className="mt-1 block w-full"
-                                            defaultValue={
-                                                company.employee_code_digits
-                                            }
-                                            name="employee_code_digits"
-                                            required
-                                        />
-                                        <InputError
-                                            className="mt-2"
-                                            message={
-                                                errors.employee_code_digits
-                                            }
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="employee_code_next_number">
-                                            Next sequence
-                                        </Label>
-                                        <Input
-                                            id="employee_code_next_number"
-                                            type="number"
-                                            min={1}
-                                            className="mt-1 block w-full"
-                                            defaultValue={
-                                                company.employee_code_next_number
-                                            }
-                                            name="employee_code_next_number"
-                                            required
-                                        />
-                                        <InputError
-                                            className="mt-2"
-                                            message={
-                                                errors.employee_code_next_number
-                                            }
-                                        />
-                                    </div>
-                                </div>
-
                                 <div className="grid gap-2">
                                     <Label htmlFor="company_logo">
-                                        Company logo
+                                        Logo perusahaan
                                     </Label>
 
                                     <label
@@ -363,7 +323,7 @@ export default function Profile({
                                         {logoPreview ? (
                                             <img
                                                 src={logoPreview}
-                                                alt="Company logo preview"
+                                                alt="Pratinjau logo perusahaan"
                                                 className="h-16 w-16 rounded-md border object-cover"
                                             />
                                         ) : (
@@ -381,7 +341,7 @@ export default function Profile({
 
                                 <div className="flex items-center gap-4">
                                     <Button disabled={processing}>
-                                        Save Company
+                                        Simpan Perusahaan
                                     </Button>
 
                                     <Transition
@@ -392,7 +352,7 @@ export default function Profile({
                                         leaveTo="opacity-0"
                                     >
                                         <p className="text-sm text-neutral-600">
-                                            Saved
+                                            Tersimpan
                                         </p>
                                     </Transition>
                                 </div>

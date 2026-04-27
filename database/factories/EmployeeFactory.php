@@ -30,6 +30,8 @@ class EmployeeFactory extends Factory
             'hire_date' => $this->faker->date(),
             'employment_status' => 'active',
             'employment_type' => 'permanent',
+            'pph21_method' => 'gross',
+            'pph21_rate' => 5,
             'division_id' => null,
             'position_id' => null,
             'manager_id' => null,

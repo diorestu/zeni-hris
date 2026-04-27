@@ -55,14 +55,15 @@ class UpdatePositionRequest extends FormRequest
             'code' => [
                 'required',
                 'string',
-                'max:20',
-                'regex:/^[A-Z0-9_-]+$/',
+                'min:2',
+                'max:3',
+                'regex:/^[A-Z0-9]+$/',
                 Rule::unique('positions', 'code')
                     ->where('user_id', $ownerId)
                     ->ignore($position->id),
             ],
             'name' => ['required', 'string', 'max:100'],
-            'level' => ['required', Rule::in(['0', '1', '2', '3', '4'])],
+            'level' => ['required', Rule::in(['0', '1', '2', '3', '4', '5'])],
             'description' => ['nullable', 'string', 'max:500'],
             'is_active' => ['sometimes', 'boolean'],
         ];

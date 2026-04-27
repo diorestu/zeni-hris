@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class PayrollItem extends Model
 {
     /** @use HasFactory<\Database\Factories\PayrollItemFactory> */
-    use HasFactory, BelongsToAccount;
+    use BelongsToAccount, HasFactory;
 
     /**
      * The attributes that are mass assignable.
@@ -23,6 +23,11 @@ class PayrollItem extends Model
         'employee_id',
         'base_salary',
         'allowances_total',
+        'pph21_method',
+        'pph21_rate',
+        'pph21_allowance',
+        'pph21_deduction',
+        'pph21_company_borne',
         'kasbon_deduction',
         'denda_deduction',
         'deductions_total',
@@ -40,6 +45,10 @@ class PayrollItem extends Model
         return [
             'base_salary' => 'decimal:2',
             'allowances_total' => 'decimal:2',
+            'pph21_rate' => 'decimal:2',
+            'pph21_allowance' => 'decimal:2',
+            'pph21_deduction' => 'decimal:2',
+            'pph21_company_borne' => 'decimal:2',
             'kasbon_deduction' => 'decimal:2',
             'denda_deduction' => 'decimal:2',
             'deductions_total' => 'decimal:2',

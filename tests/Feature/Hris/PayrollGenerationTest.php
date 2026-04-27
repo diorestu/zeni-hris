@@ -4,6 +4,7 @@ namespace Tests\Feature\Hris;
 
 use App\Models\Employee;
 use App\Models\EmployeeAllowance;
+use App\Models\EmployeeAttendance;
 use App\Models\EmployeeDeduction;
 use App\Models\PayrollRun;
 use App\Models\User;
@@ -32,12 +33,16 @@ class PayrollGenerationTest extends TestCase
         ]);
 
         $employee = Employee::factory()->create([
+            'user_id' => $user->id,
             'base_salary' => 5_000_000,
+            'pph21_method' => 'gross',
+            'pph21_rate' => 5,
             'is_active' => true,
             'employment_status' => 'active',
         ]);
 
         EmployeeAllowance::query()->create([
+            'user_id' => $user->id,
             'employee_id' => $employee->id,
             'name' => 'Tunjangan Transport',
             'amount' => 500_000,
@@ -47,6 +52,7 @@ class PayrollGenerationTest extends TestCase
         ]);
 
         EmployeeAllowance::query()->create([
+            'user_id' => $user->id,
             'employee_id' => $employee->id,
             'name' => 'Tunjangan Makan',
             'amount' => 300_000,
@@ -56,6 +62,7 @@ class PayrollGenerationTest extends TestCase
         ]);
 
         EmployeeDeduction::query()->create([
+            'user_id' => $user->id,
             'employee_id' => $employee->id,
             'type' => 'kasbon',
             'amount' => 250_000,
@@ -63,6 +70,7 @@ class PayrollGenerationTest extends TestCase
         ]);
 
         EmployeeDeduction::query()->create([
+            'user_id' => $user->id,
             'employee_id' => $employee->id,
             'type' => 'denda',
             'amount' => 50_000,
@@ -80,18 +88,125 @@ class PayrollGenerationTest extends TestCase
             'employees_count' => 1,
             'total_base_salary' => 5000000.00,
             'total_allowances' => 800000.00,
-            'total_deductions' => 300000.00,
-            'total_net_salary' => 5500000.00,
+            'total_deductions' => 590000.00,
+            'total_net_salary' => 5210000.00,
         ]);
 
         $this->assertDatabaseHas('payroll_items', [
             'employee_id' => $employee->id,
             'base_salary' => 5000000.00,
             'allowances_total' => 800000.00,
+            'pph21_method' => 'gross',
+            'pph21_rate' => 5.00,
+            'pph21_deduction' => 290000.00,
             'kasbon_deduction' => 250000.00,
             'denda_deduction' => 50000.00,
-            'deductions_total' => 300000.00,
-            'net_salary' => 5500000.00,
+            'deductions_total' => 590000.00,
+            'net_salary' => 5210000.00,
+        ]);
+    }
+
+    public function test_pph21_gross_up_adds_tax_allowance_and_equal_tax_deduction(): void
+    {
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $employee = Employee::factory()->create([
+            'user_id' => $user->id,
+            'base_salary' => 4_000_000,
+            'pph21_method' => 'gross_up',
+            'pph21_rate' => 5,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-02',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-02']));
+
+        $this->assertDatabaseHas('payroll_items', [
+            'employee_id' => $employee->id,
+            'pph21_method' => 'gross_up',
+            'pph21_allowance' => 200000.00,
+            'pph21_deduction' => 200000.00,
+            'net_salary' => 4000000.00,
+        ]);
+    }
+
+    public function test_pph21_net_is_company_borne_and_not_cut_from_take_home_pay(): void
+    {
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $employee = Employee::factory()->create([
+            'user_id' => $user->id,
+            'base_salary' => 4_000_000,
+            'pph21_method' => 'net',
+            'pph21_rate' => 5,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-02',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-02']));
+
+        $this->assertDatabaseHas('payroll_items', [
+            'employee_id' => $employee->id,
+            'pph21_method' => 'net',
+            'pph21_company_borne' => 200000.00,
+            'pph21_deduction' => 0.00,
+            'net_salary' => 4000000.00,
+        ]);
+    }
+
+    public function test_pph21_ter_harian_calculates_daily_tax_based_on_attendance(): void
+    {
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $employee = Employee::factory()->create([
+            'user_id' => $user->id,
+            'base_salary' => 3_000_000,
+            'pph21_method' => 'ter_harian',
+            'pph21_rate' => 2,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        EmployeeAttendance::factory()->create([
+            'user_id' => $user->id,
+            'employee_id' => $employee->id,
+            'attendance_date' => '2026-02-03',
+            'status' => 'present',
+        ]);
+
+        EmployeeAttendance::factory()->create([
+            'user_id' => $user->id,
+            'employee_id' => $employee->id,
+            'attendance_date' => '2026-02-04',
+            'status' => 'late',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-02',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-02']));
+
+        $this->assertDatabaseHas('payroll_items', [
+            'employee_id' => $employee->id,
+            'pph21_method' => 'ter_harian',
+            'pph21_deduction' => 60000.00,
+            'deductions_total' => 60000.00,
+            'net_salary' => 2940000.00,
         ]);
     }
 
@@ -102,6 +217,7 @@ class PayrollGenerationTest extends TestCase
         ]);
 
         $run = PayrollRun::factory()->create([
+            'user_id' => $user->id,
             'period' => '2026-02',
             'is_saved' => false,
             'saved_at' => null,
@@ -116,6 +232,61 @@ class PayrollGenerationTest extends TestCase
             'id' => $run->id,
             'is_saved' => true,
             'saved_by' => $user->id,
+        ]);
+    }
+
+    public function test_two_companies_can_generate_payroll_for_the_same_period(): void
+    {
+        $firstUser = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $secondUser = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        Employee::factory()->create([
+            'user_id' => $firstUser->id,
+            'base_salary' => 4_000_000,
+            'pph21_method' => 'gross',
+            'pph21_rate' => 0,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        Employee::factory()->create([
+            'user_id' => $secondUser->id,
+            'base_salary' => 4_500_000,
+            'pph21_method' => 'gross',
+            'pph21_rate' => 0,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        $this->actingAs($firstUser)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-02',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-02']));
+
+        $this->actingAs($secondUser)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-02',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-02']));
+
+        $this->assertDatabaseCount('payroll_runs', 2);
+        $this->assertDatabaseHas('payroll_runs', [
+            'user_id' => $firstUser->id,
+            'period' => '2026-02',
+            'employees_count' => 1,
+            'total_base_salary' => 4000000.00,
+        ]);
+        $this->assertDatabaseHas('payroll_runs', [
+            'user_id' => $secondUser->id,
+            'period' => '2026-02',
+            'employees_count' => 1,
+            'total_base_salary' => 4500000.00,
         ]);
     }
 }

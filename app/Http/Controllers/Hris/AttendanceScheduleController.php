@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Hris;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hris\StoreAttendanceScheduleRequest;
 use App\Models\EmployeeSchedule;
+use App\Models\WorkShift;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
 
@@ -17,6 +18,17 @@ class AttendanceScheduleController extends Controller
     {
         $validated = $request->validated();
         $ownerId = $request->user()->accountOwnerId();
+        $shiftTemplates = WorkShift::query()
+            ->where('user_id', $ownerId)
+            ->get()
+            ->mapWithKeys(fn (WorkShift $shift) => [
+                $shift->code => [
+                    'start_time' => $shift->start_time,
+                    'end_time' => $shift->end_time,
+                    'is_day_off' => $shift->is_day_off,
+                ],
+            ])
+            ->all();
 
         $monthStart = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
         $monthEnd = $monthStart->copy()->endOfMonth();
@@ -27,21 +39,21 @@ class AttendanceScheduleController extends Controller
 
                 return $entryDate->betweenIncluded($monthStart, $monthEnd);
             })
-            ->map(function (array $entry) use ($validated, $ownerId): array {
-                $isDayOff = (bool) ($entry['is_day_off'] ?? false);
-
-                if (($entry['shift_code'] ?? '') === 'OFF') {
-                    $isDayOff = true;
-                }
+            ->map(function (array $entry) use ($validated, $ownerId, $shiftTemplates): array {
+                $template = $shiftTemplates[$entry['shift_code']] ?? [
+                    'start_time' => null,
+                    'end_time' => null,
+                    'is_day_off' => true,
+                ];
 
                 return [
                     'user_id' => $ownerId,
                     'employee_id' => $validated['employee_id'],
                     'work_date' => $entry['date'],
                     'shift_code' => $entry['shift_code'],
-                    'start_time' => $entry['start_time'] ?? null,
-                    'end_time' => $entry['end_time'] ?? null,
-                    'is_day_off' => $isDayOff,
+                    'start_time' => $template['start_time'],
+                    'end_time' => $template['end_time'],
+                    'is_day_off' => $template['is_day_off'],
                     'notes' => $entry['notes'] ?? null,
                     'created_at' => now(),
                     'updated_at' => now(),

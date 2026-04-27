@@ -15,6 +15,19 @@ class StoreEmployeeAllowanceRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        if (! $this->has('amount')) {
+            return;
+        }
+
+        $normalized = preg_replace('/[^\d]/', '', (string) $this->input('amount'));
+
+        $this->merge([
+            'amount' => $normalized === '' ? null : $normalized,
+        ]);
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -32,4 +45,3 @@ class StoreEmployeeAllowanceRequest extends FormRequest
         ];
     }
 }
-

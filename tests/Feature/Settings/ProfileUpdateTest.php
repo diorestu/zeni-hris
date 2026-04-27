@@ -5,6 +5,7 @@ namespace Tests\Feature\Settings;
 use App\Models\CompanySetting;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ProfileUpdateTest extends TestCase
@@ -31,6 +32,7 @@ class ProfileUpdateTest extends TestCase
             ->patch(route('profile.update'), [
                 'name' => 'Test User',
                 'email' => 'test@example.com',
+                'phone' => $user->phone,
             ]);
 
         $response
@@ -53,6 +55,7 @@ class ProfileUpdateTest extends TestCase
             ->patch(route('profile.update'), [
                 'name' => 'Test User',
                 'email' => $user->email,
+                'phone' => $user->phone,
             ]);
 
         $response
@@ -60,6 +63,32 @@ class ProfileUpdateTest extends TestCase
             ->assertRedirect(route('profile.edit'));
 
         $this->assertNotNull($user->refresh()->email_verified_at);
+    }
+
+    public function test_phone_number_is_normalized_and_requires_reactivation_when_changed(): void
+    {
+        Http::fake();
+
+        $user = User::factory()->create([
+            'phone' => '6281234567890',
+            'phone_verified_at' => now(),
+        ]);
+
+        $response = $this
+            ->actingAs($user)
+            ->patch(route('profile.update'), [
+                'name' => 'Test User',
+                'email' => $user->email,
+                'phone' => '0812 0000 1111',
+            ]);
+
+        $response->assertRedirect(route('activation.notice'));
+
+        $user->refresh();
+
+        $this->assertSame('6281200001111', $user->phone);
+        $this->assertNull($user->phone_verified_at);
+        $this->assertNotNull($user->whatsapp_otp_code);
     }
 
     public function test_user_can_delete_their_account()

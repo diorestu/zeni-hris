@@ -25,13 +25,21 @@ class UserFactory extends Factory
     {
         return [
             'name' => fake()->name(),
+            'company_name' => fake()->company(),
             'email' => fake()->unique()->safeEmail(),
+            'phone' => '628'.fake()->unique()->numerify('##########'),
             'email_verified_at' => now(),
+            'phone_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
+            'role' => 'admin',
+            'parent_user_id' => null,
             'remember_token' => Str::random(10),
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
             'two_factor_confirmed_at' => null,
+            'whatsapp_otp_code' => null,
+            'whatsapp_otp_sent_at' => null,
+            'whatsapp_otp_expires_at' => null,
         ];
     }
 
@@ -42,6 +50,14 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
+            'phone_verified_at' => null,
+        ]);
+    }
+
+    public function unactivated(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'phone_verified_at' => null,
         ]);
     }
 

@@ -1,5 +1,5 @@
 import { Transition } from '@headlessui/react';
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import { useRef } from 'react';
 import PasswordController from '@/actions/App/Http/Controllers/Settings/PasswordController';
 import Heading from '@/components/heading';
@@ -14,27 +14,33 @@ import type { BreadcrumbItem } from '@/types';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Password settings',
+        title: 'Pengaturan kata sandi',
         href: edit(),
     },
 ];
 
-export default function Password() {
+export default function Password({ promptMode = false }: { promptMode?: boolean }) {
     const passwordInput = useRef<HTMLInputElement>(null);
     const currentPasswordInput = useRef<HTMLInputElement>(null);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="Password settings" />
+            <Head title="Pengaturan kata sandi" />
 
-            <h1 className="sr-only">Password settings</h1>
+            <h1 className="sr-only">Pengaturan kata sandi</h1>
 
             <SettingsLayout>
                 <div className="space-y-6">
+                    {promptMode ? (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                            Anda menggunakan password awal dari nomor telepon. Demi keamanan, disarankan ubah password sekarang. Jika belum ingin, Anda bisa melewati langkah ini.
+                        </div>
+                    ) : null}
+
                     <Heading
                         variant="small"
-                        title="Update password"
-                        description="Ensure your account is using a long, random password to stay secure"
+                        title="Perbarui kata sandi"
+                        description="Gunakan kata sandi yang kuat dan sulit ditebak agar akun tetap aman"
                     />
 
                     <Form
@@ -63,7 +69,7 @@ export default function Password() {
                             <>
                                 <div className="grid gap-2">
                                     <Label htmlFor="current_password">
-                                        Current password
+                                        Kata sandi saat ini
                                     </Label>
 
                                     <Input
@@ -73,7 +79,7 @@ export default function Password() {
                                         type="password"
                                         className="mt-1 block w-full"
                                         autoComplete="current-password"
-                                        placeholder="Current password"
+                                         placeholder="Kata sandi saat ini"
                                     />
 
                                     <InputError
@@ -83,7 +89,7 @@ export default function Password() {
 
                                 <div className="grid gap-2">
                                     <Label htmlFor="password">
-                                        New password
+                                        Kata sandi baru
                                     </Label>
 
                                     <Input
@@ -93,7 +99,7 @@ export default function Password() {
                                         type="password"
                                         className="mt-1 block w-full"
                                         autoComplete="new-password"
-                                        placeholder="New password"
+                                        placeholder="Kata sandi baru"
                                     />
 
                                     <InputError message={errors.password} />
@@ -101,7 +107,7 @@ export default function Password() {
 
                                 <div className="grid gap-2">
                                     <Label htmlFor="password_confirmation">
-                                        Confirm password
+                                        Konfirmasi kata sandi
                                     </Label>
 
                                     <Input
@@ -110,7 +116,7 @@ export default function Password() {
                                         type="password"
                                         className="mt-1 block w-full"
                                         autoComplete="new-password"
-                                        placeholder="Confirm password"
+                                        placeholder="Konfirmasi kata sandi"
                                     />
 
                                     <InputError
@@ -123,8 +129,18 @@ export default function Password() {
                                         disabled={processing}
                                         data-test="update-password-button"
                                     >
-                                        Save password
+                                        Simpan kata sandi
                                     </Button>
+
+                                    {promptMode ? (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            onClick={() => router.post('/settings/password/skip')}
+                                        >
+                                            Lewati nanti
+                                        </Button>
+                                    ) : null}
 
                                     <Transition
                                         show={recentlySuccessful}
@@ -134,7 +150,7 @@ export default function Password() {
                                         leaveTo="opacity-0"
                                     >
                                         <p className="text-sm text-neutral-600">
-                                            Saved
+                                            Tersimpan
                                         </p>
                                     </Transition>
                                 </div>

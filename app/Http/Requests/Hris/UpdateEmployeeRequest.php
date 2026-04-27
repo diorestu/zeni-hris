@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Hris;
 
 use App\Models\Employee;
+use App\Models\Position;
+use App\Support\WhatsAppPhone;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -22,16 +24,39 @@ class UpdateEmployeeRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        $normalizedPayload = [];
+
+        if ($this->has('full_name')) {
+            $fullName = trim((string) $this->input('full_name'));
+            $normalizedPayload['full_name'] = $fullName;
+            $normalizedPayload['first_name'] = $fullName;
+            $normalizedPayload['last_name'] = null;
+        }
+
         if ($this->has('employee_code')) {
-            $this->merge([
-                'employee_code' => strtoupper((string) $this->input('employee_code')),
-            ]);
+            $normalizedPayload['employee_code'] = strtoupper((string) $this->input('employee_code'));
         }
 
         if (($this->input('marital_status') ?? '') === 'single') {
-            $this->merge([
-                'children_count' => 0,
-            ]);
+            $normalizedPayload['children_count'] = 0;
+        }
+
+        if ($this->has('base_salary')) {
+            $normalizedPayload['base_salary'] = $this->normalizeCurrencyInput(
+                $this->input('base_salary')
+            );
+        }
+
+        if ($this->filled('phone')) {
+            $normalizedPayload['phone'] = WhatsAppPhone::normalize((string) $this->input('phone'));
+        }
+
+        if ($this->filled('emergency_contact_phone')) {
+            $normalizedPayload['emergency_contact_phone'] = WhatsAppPhone::normalize((string) $this->input('emergency_contact_phone'));
+        }
+
+        if ($normalizedPayload !== []) {
+            $this->merge($normalizedPayload);
         }
     }
 
@@ -47,6 +72,7 @@ class UpdateEmployeeRequest extends FormRequest
         $ownerId = $this->user()->accountOwnerId();
 
         return [
+            'full_name' => ['required', 'string', 'max:150'],
             'employee_code' => [
                 'required',
                 'string',
@@ -56,7 +82,7 @@ class UpdateEmployeeRequest extends FormRequest
                     ->where('user_id', $ownerId)
                     ->ignore($employee->id),
             ],
-            'first_name' => ['required', 'string', 'max:100'],
+            'first_name' => ['nullable', 'string', 'max:100'],
             'last_name' => ['nullable', 'string', 'max:100'],
             'email' => [
                 'nullable',
@@ -75,14 +101,31 @@ class UpdateEmployeeRequest extends FormRequest
             'hire_date' => ['required', 'date'],
             'employment_status' => ['required', Rule::in(['active', 'probation', 'on_leave', 'resigned'])],
             'employment_type' => ['required', Rule::in(['permanent', 'contract', 'internship', 'freelance'])],
-            'division_id' => ['nullable', 'integer', Rule::exists('divisions', 'id')->where('user_id', $ownerId)],
+            'pph21_method' => ['required', Rule::in(['ter_harian', 'gross', 'net', 'gross_up'])],
+            'pph21_rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'ptkp_category' => ['nullable', Rule::in(['TK/0', 'TK/1', 'TK/2', 'TK/3', 'K/0', 'K/1', 'K/2', 'K/3'])],
+            'division_id' => ['required', 'integer', Rule::exists('divisions', 'id')->where('user_id', $ownerId)],
             'position_id' => [
-                'nullable',
+                'required',
                 'integer',
                 Rule::exists('positions', 'id')->where('user_id', $ownerId),
-                Rule::unique('employees', 'position_id')
-                    ->where('user_id', $ownerId)
-                    ->ignore($employee->id),
+                function (string $attribute, mixed $value, \Closure $fail) use ($employee, $ownerId): void {
+                    $positionLevel = Position::query()->whereKey($value)->value('level');
+
+                    if (! in_array((string) $positionLevel, ['0', '1', '2'], true)) {
+                        return;
+                    }
+
+                    $isOccupied = Employee::query()
+                        ->where('user_id', $ownerId)
+                        ->where('position_id', $value)
+                        ->whereKeyNot($employee->id)
+                        ->exists();
+
+                    if ($isOccupied) {
+                        $fail('Jabatan level 0-2 hanya boleh diisi oleh satu orang.');
+                    }
+                },
             ],
             'manager_id' => [
                 'nullable',
@@ -113,8 +156,17 @@ class UpdateEmployeeRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
-            'position_id.unique' => 'Jabatan tersebut sudah ditempati karyawan lain. Satu jabatan hanya boleh untuk satu orang.',
-        ];
+        return [];
+    }
+
+    private function normalizeCurrencyInput(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $normalized = preg_replace('/[^\d]/', '', (string) $value);
+
+        return $normalized === '' ? null : $normalized;
     }
 }

@@ -32,6 +32,52 @@ class AuthenticationTest extends TestCase
         $response->assertRedirect(route('dashboard', absolute: false));
     }
 
+    public function test_portal_users_are_redirected_to_portal_home_after_login(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'user',
+            'email_verified_at' => now(),
+        ]);
+
+        $response = $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('portal.index', absolute: false));
+    }
+
+    public function test_unactivated_users_are_redirected_to_activation_screen_after_login(): void
+    {
+        $user = User::factory()->unactivated()->create();
+
+        $response = $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('activation.notice'));
+    }
+
+    public function test_users_with_default_password_prompt_are_redirected_to_password_page(): void
+    {
+        $user = User::factory()->create([
+            'role' => 'user',
+            'requires_password_change' => true,
+            'parent_user_id' => User::factory()->create()->id,
+        ]);
+
+        $response = $this->post(route('login.store'), [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('user-password.edit', ['prompt' => 1]));
+    }
+
     public function test_users_with_two_factor_enabled_are_redirected_to_two_factor_challenge()
     {
         if (! Features::canManageTwoFactorAuthentication()) {

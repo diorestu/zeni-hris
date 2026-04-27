@@ -1,0 +1,25 @@
+{
+    "name": "PaperTime HRIS",
+    "short_name": "PaperTime",
+    "description": "Portal HRIS mobile-first untuk absensi, cuti, dan payroll.",
+    "start_url": "/portal",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#f4f1ea",
+    "theme_color": "#0f172a",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/favicon.ico",
+            "sizes": "48x48",
+            "type": "image/x-icon",
+            "purpose": "any"
+        }
+    ]
+}

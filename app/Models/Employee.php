@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Employee extends Model
 {
     /** @use HasFactory<\Database\Factories\EmployeeFactory> */
-    use HasFactory, BelongsToAccount;
+    use BelongsToAccount, HasFactory;
 
     /**
      * The attributes that are mass assignable.
@@ -33,6 +33,9 @@ class Employee extends Model
         'hire_date',
         'employment_status',
         'employment_type',
+        'pph21_method',
+        'pph21_rate',
+        'ptkp_category',
         'division_id',
         'position_id',
         'manager_id',
@@ -63,6 +66,7 @@ class Employee extends Model
             'children_count' => 'integer',
             'hire_date' => 'date',
             'base_salary' => 'decimal:2',
+            'pph21_rate' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }

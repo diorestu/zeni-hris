@@ -26,7 +26,7 @@ class OrganizationChartController extends Controller
                     ->orderBy('first_name')
                     ->orderBy('last_name'),
             ])
-            ->orderByRaw('CAST(COALESCE(level, 4) AS UNSIGNED)')
+            ->orderByRaw('CAST(COALESCE(level, 5) AS UNSIGNED)')
             ->orderBy('name')
             ->get([
                 'id',
@@ -79,6 +79,7 @@ class OrganizationChartController extends Controller
             return [
                 'id' => $position->id,
                 'position_code' => $position->code,
+                'employees' => [],
                 'employee_code' => 'VACANT',
                 'full_name' => 'Vacant',
                 'is_vacant' => true,
@@ -101,24 +102,33 @@ class OrganizationChartController extends Controller
             ->map(fn (Position $child) => $this->buildNode($child, $childrenByParent, $nextVisited))
             ->all();
 
-        $employee = $position->employees
+        $employees = $position->employees
             ->sortBy(fn ($entry) => strtolower($entry->full_name))
-            ->first();
+            ->values();
 
-        $isVacant = $employee === null;
+        $isVacant = $employees->isEmpty();
+
+        $employeesData = $employees->map(fn ($emp) => [
+            'id' => $emp->id,
+            'employee_code' => $emp->employee_code,
+            'full_name' => $emp->full_name,
+            'employment_status' => $emp->employment_status,
+            'is_active' => $emp->is_active,
+        ])->all();
 
         return [
             'id' => $position->id,
             'position_code' => $position->code,
-            'employee_code' => $employee?->employee_code ?? 'VACANT',
-            'full_name' => $employee?->full_name ?? 'Vacant',
+            'employees' => $isVacant ? [] : $employeesData,
+            'employee_code' => $employees->first()?->employee_code ?? 'VACANT',
+            'full_name' => $employees->first()?->full_name ?? 'Vacant',
             'is_vacant' => $isVacant,
             'division_name' => $position->division?->name,
             'position_name' => $position->name,
             'position_level' => $this->normalizePositionLevel($position->level),
             'position_level_label' => $this->positionLevelLabel($position->level),
-            'employment_status' => $employee?->employment_status ?? 'vacant',
-            'is_active' => $employee?->is_active ?? false,
+            'employment_status' => $employees->first()?->employment_status ?? 'vacant',
+            'is_active' => $employees->first()?->is_active ?? false,
             'children' => $children,
             'cycle_detected' => false,
         ];
@@ -170,12 +180,12 @@ class OrganizationChartController extends Controller
         if (is_numeric((string) $level)) {
             $value = (int) $level;
 
-            if ($value >= 0 && $value <= 4) {
+            if ($value >= 0 && $value <= 5) {
                 return $value;
             }
         }
 
-        return 4;
+        return 5;
     }
 
     /**
@@ -188,7 +198,8 @@ class OrganizationChartController extends Controller
             1 => 'Level 1 - Direktur Divisi',
             2 => 'Level 2 - Manager',
             3 => 'Level 3 - Senior Staff / Supervisor',
-            default => 'Level 4 - Staff',
+            4 => 'Level 4 - Staff',
+            default => 'Level 5 - Operator / Pelaksana',
         };
     }
 }

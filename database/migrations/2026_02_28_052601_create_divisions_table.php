@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('divisions', function (Blueprint $table) {
             $table->id();
-            $table->string('code', 20)->unique();
-            $table->string('name', 100)->unique();
+            $table->string('code', 20);
+            $table->string('name', 100);
             $table->text('description')->nullable();
             $table->boolean('is_active')->default(true);
             $table->timestamps();

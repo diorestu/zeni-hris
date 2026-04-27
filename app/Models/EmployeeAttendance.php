@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class EmployeeAttendance extends Model
 {
     /** @use HasFactory<\Database\Factories\EmployeeAttendanceFactory> */
-    use HasFactory, BelongsToAccount;
+    use BelongsToAccount, HasFactory;
 
     /**
      * The attributes that are mass assignable.
@@ -20,10 +20,15 @@ class EmployeeAttendance extends Model
     protected $fillable = [
         'user_id',
         'employee_id',
+        'shift_id',
         'attendance_date',
         'status',
         'check_in_at',
+        'check_in_latitude',
+        'check_in_longitude',
         'check_out_at',
+        'check_out_latitude',
+        'check_out_longitude',
         'notes',
     ];
 
@@ -38,6 +43,10 @@ class EmployeeAttendance extends Model
             'attendance_date' => 'date',
             'check_in_at' => 'datetime',
             'check_out_at' => 'datetime',
+            'check_in_latitude' => 'decimal:7',
+            'check_in_longitude' => 'decimal:7',
+            'check_out_latitude' => 'decimal:7',
+            'check_out_longitude' => 'decimal:7',
         ];
     }
 
@@ -47,5 +56,13 @@ class EmployeeAttendance extends Model
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Get shift that owns this attendance row.
+     */
+    public function shift(): BelongsTo
+    {
+        return $this->belongsTo(WorkShift::class);
     }
 }

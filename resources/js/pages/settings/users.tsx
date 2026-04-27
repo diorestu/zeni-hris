@@ -21,7 +21,7 @@ type SubUser = {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Profile settings',
+        title: 'Pengaturan pengguna',
         href: edit(),
     },
 ];
@@ -72,14 +72,14 @@ export default function SettingsUsersPage({ subUsers }: { subUsers: SubUser[] })
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="User settings" />
+            <Head title="Pengaturan pengguna" />
 
             <SettingsLayout>
                 <div className="space-y-6">
                     <Heading
                         variant="small"
-                        title="Users"
-                        description="Manage sub-users under your admin account"
+                        title="Pengguna"
+                        description="Kelola sub-user di bawah akun admin Anda"
                     />
 
                     <form onSubmit={submitCreate} className="space-y-4 rounded-lg border p-4">
@@ -110,7 +110,7 @@ export default function SettingsUsersPage({ subUsers }: { subUsers: SubUser[] })
                             <InputError message={createForm.errors.email} />
                         </div>
                         <div className="grid gap-2">
-                            <Label htmlFor="new_user_password">Password</Label>
+                            <Label htmlFor="new_user_password">Kata sandi</Label>
                             <Input
                                 id="new_user_password"
                                 type="password"

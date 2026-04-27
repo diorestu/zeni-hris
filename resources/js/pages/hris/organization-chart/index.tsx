@@ -7,11 +7,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
 import type { BreadcrumbItem } from '@/types';
 
+type Employee = {
+    id: number;
+    employee_code: string;
+    full_name: string;
+    employment_status: string;
+    is_active: boolean;
+};
+
 type OrgNode = {
     id: number;
     position_code: string;
     employee_code: string;
     full_name: string;
+    employees: Employee[];
     is_vacant: boolean;
     division_name: string | null;
     position_name: string | null;
@@ -129,6 +138,10 @@ function OrgPersonCard({ node }: { node: OrgNode }) {
     const isExecutiveLevel = node.position_level <= 2;
     const level = node.position_level;
     const isLightCard = level >= 3;
+    const employees = node.employees ?? [];
+    const employeeCount = employees.length;
+    const isVacant = employeeCount === 0;
+    const hasMoreEmployees = employeeCount > 1;
 
     const cardToneClass =
         level === 0
@@ -141,7 +154,9 @@ function OrgPersonCard({ node }: { node: OrgNode }) {
                   ? 'border-slate-300 bg-gradient-to-r from-slate-200 via-slate-100 to-white shadow-slate-300/35'
                   : 'border-slate-300 bg-white shadow-slate-300/35';
 
-    return (
+    const mainEmployee = employees[0];
+
+    const MainCard = (
         <div
             className={`border shadow-md ${
                 isExecutiveLevel
@@ -170,7 +185,7 @@ function OrgPersonCard({ node }: { node: OrgNode }) {
                             isExecutiveLevel ? 'text-[9px]' : 'text-[7px]'
                         }`}
                     >
-                        {node.is_vacant ? 'VC' : initials(node.full_name)}
+                        {isVacant ? 'VC' : initials(mainEmployee?.full_name ?? '')}
                     </AvatarFallback>
                 </Avatar>
 
@@ -180,7 +195,7 @@ function OrgPersonCard({ node }: { node: OrgNode }) {
                             isExecutiveLevel ? 'text-[10px]' : 'text-[9px]'
                         }`}
                     >
-                        {node.full_name}
+                        {isVacant ? 'Vacant' : mainEmployee?.full_name}
                     </p>
                     <p
                         className={`truncate font-medium uppercase ${
@@ -192,6 +207,60 @@ function OrgPersonCard({ node }: { node: OrgNode }) {
                         {node.position_name ?? node.position_level_label}
                     </p>
                 </div>
+            </div>
+        </div>
+    );
+
+    if (!hasMoreEmployees) {
+        return <div className="flex flex-col gap-1">{MainCard}</div>;
+    }
+
+    return (
+        <div className="relative flex flex-col">
+            {MainCard}
+
+            {/* Show additional employees with connecting lines */}
+            <div className="relative pt-2">
+                <div
+                    aria-hidden
+                    className="absolute top-0 left-1/2 h-2 w-px bg-slate-400"
+                />
+
+                <ul className="relative left-1/2 w-fit flex flex-col gap-0.5">
+                    {employees.slice(1).map((emp, index) => {
+                        const isLast = index === employees.length - 2;
+                        const verticalLineClass = isLast
+                            ? 'top-0 bottom-1/2'
+                            : 'top-0 bottom-0';
+
+                        return (
+                            <li
+                                key={emp.id}
+                                className={`relative pl-5 ${isLast ? '' : 'pb-2'}`}
+                            >
+                                <div
+                                    aria-hidden
+                                    className={`absolute left-0 w-px bg-slate-400 ${verticalLineClass}`}
+                                />
+                                <div
+                                    aria-hidden
+                                    className="absolute top-1/2 left-0 h-px w-5 -translate-y-1/2 bg-slate-400"
+                                />
+                                <div
+                                    className={`border shadow-sm rounded-[12px] px-2 py-1 text-[8px] ${cardToneClass} ${
+                                        isLightCard
+                                            ? 'text-slate-900'
+                                            : 'text-white'
+                                    }`}
+                                >
+                                    <p className="truncate font-semibold uppercase">
+                                        {emp.full_name}
+                                    </p>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
             </div>
         </div>
     );

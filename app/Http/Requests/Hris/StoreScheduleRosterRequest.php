@@ -33,7 +33,7 @@ class StoreScheduleRosterRequest extends FormRequest
             'pattern.*' => [
                 'required',
                 'string',
-                Rule::in(['OFF', 'SHIFT_A', 'SHIFT_B', 'SHIFT_C', 'WFH']),
+                Rule::exists('work_shifts', 'code')->where('user_id', $ownerId),
             ],
         ];
     }

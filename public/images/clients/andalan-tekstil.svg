@@ -1,0 +1,7 @@
+<svg width="220" height="72" viewBox="0 0 220 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="1" y="1" width="218" height="70" rx="12" fill="#FFFFFF" stroke="#D7E6FF"/>
+  <rect x="18" y="18" width="36" height="36" rx="10" fill="#EAF1FF"/>
+  <path d="M25 47L33 25H39L47 47H41L39 42H33L31 47H25ZM34 37H38L36 31L34 37Z" fill="#1D4ED8"/>
+  <text x="64" y="32" fill="#1E293B" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700">ANDALAN</text>
+  <text x="64" y="47" fill="#64748B" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="600">TEKSTIL</text>
+</svg>

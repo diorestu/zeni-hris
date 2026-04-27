@@ -44,8 +44,9 @@ class UpdateDivisionRequest extends FormRequest
             'code' => [
                 'required',
                 'string',
-                'max:20',
-                'regex:/^[A-Z0-9_-]+$/',
+                'min:2',
+                'max:3',
+                'regex:/^[A-Z0-9]+$/',
                 Rule::unique('divisions', 'code')
                     ->where('user_id', $ownerId)
                     ->ignore($division->id),

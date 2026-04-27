@@ -27,6 +27,7 @@ class StoreAttendanceRequest extends FormRequest
 
         return [
             'employee_id' => ['required', 'integer', Rule::exists('employees', 'id')->where('user_id', $ownerId)],
+            'shift_id' => ['required', 'integer', Rule::exists('work_shifts', 'id')->where('user_id', $ownerId)],
             'attendance_date' => [
                 'required',
                 'date',
@@ -37,7 +38,11 @@ class StoreAttendanceRequest extends FormRequest
             ],
             'status' => ['required', Rule::in(['present', 'late', 'on_leave', 'absent'])],
             'check_in_at' => ['nullable', 'date'],
+            'check_in_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'check_in_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'check_out_at' => ['nullable', 'date', 'after_or_equal:check_in_at'],
+            'check_out_latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'check_out_longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'notes' => ['nullable', 'string', 'max:255'],
         ];
     }

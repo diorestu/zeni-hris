@@ -9,11 +9,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use HasApiTokens, HasFactory, Notifiable, TwoFactorAuthenticatable;
 
     /**
      * The attributes that are mass assignable.
@@ -22,10 +23,18 @@ class User extends Authenticatable
      */
     protected $fillable = [
         'name',
+        'company_name',
         'email',
+        'phone',
         'password',
         'role',
         'parent_user_id',
+        'phone_verified_at',
+        'whatsapp_otp_code',
+        'whatsapp_otp_sent_at',
+        'whatsapp_otp_expires_at',
+        'requires_password_change',
+        'password_changed_at',
     ];
 
     /**
@@ -38,6 +47,7 @@ class User extends Authenticatable
         'two_factor_secret',
         'two_factor_recovery_codes',
         'remember_token',
+        'whatsapp_otp_code',
     ];
 
     /**
@@ -49,9 +59,22 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'phone_verified_at' => 'datetime',
+            'whatsapp_otp_sent_at' => 'datetime',
+            'whatsapp_otp_expires_at' => 'datetime',
+            'requires_password_change' => 'boolean',
+            'password_changed_at' => 'datetime',
             'password' => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Determine whether the account has been activated via WhatsApp OTP.
+     */
+    public function hasActivatedAccount(): bool
+    {
+        return $this->phone_verified_at !== null;
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\ProfileDeleteRequest;
 use App\Http\Requests\Settings\ProfileUpdateRequest;
 use App\Models\CompanySetting;
+use App\Services\WhatsAppOtpService;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,9 +44,6 @@ class ProfileController extends Controller
                 'logo_url' => $companySetting->logo_path
                     ? Storage::disk('public')->url($companySetting->logo_path)
                     : null,
-                'employee_code_prefix' => $companySetting->employee_code_prefix ?? 'EMP',
-                'employee_code_digits' => $companySetting->employee_code_digits ?? 4,
-                'employee_code_next_number' => $companySetting->employee_code_next_number ?? 1,
             ],
         ]);
     }
@@ -53,7 +51,7 @@ class ProfileController extends Controller
     /**
      * Update the user's profile information.
      */
-    public function update(ProfileUpdateRequest $request): RedirectResponse
+    public function update(ProfileUpdateRequest $request, WhatsAppOtpService $otpService): RedirectResponse
     {
         $request->user()->fill($request->validated());
 
@@ -61,7 +59,24 @@ class ProfileController extends Controller
             $request->user()->email_verified_at = null;
         }
 
+        $phoneChanged = $request->user()->isDirty('phone');
+
+        if ($phoneChanged) {
+            $request->user()->phone_verified_at = null;
+            $request->user()->whatsapp_otp_code = null;
+            $request->user()->whatsapp_otp_sent_at = null;
+            $request->user()->whatsapp_otp_expires_at = null;
+        }
+
         $request->user()->save();
+
+        if ($phoneChanged) {
+            $otpService->send($request->user());
+
+            return redirect()
+                ->route('activation.notice')
+                ->with('status', 'otp-sent');
+        }
 
         return to_route('profile.edit');
     }

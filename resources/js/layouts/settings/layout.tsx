@@ -13,28 +13,33 @@ import type { NavItem } from '@/types';
 
 const sidebarNavItems: NavItem[] = [
     {
-        title: 'Profile',
+        title: 'Profil',
         href: edit(),
         icon: null,
     },
     {
-        title: 'Password',
+        title: 'Kata sandi',
         href: editPassword(),
         icon: null,
     },
     {
-        title: 'Two-factor auth',
+        title: 'Autentikasi dua faktor',
         href: show(),
         icon: null,
     },
     {
-        title: 'Appearance',
+        title: 'Tampilan',
         href: editAppearance(),
         icon: null,
     },
     {
-        title: 'Users',
+        title: 'Pengguna',
         href: '/settings/users',
+        icon: null,
+    },
+    {
+        title: 'WhatsApp',
+        href: '/settings/whatsapp',
         icon: null,
     },
 ];
@@ -61,15 +66,15 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
     return (
         <div className="px-4 py-6">
             <Heading
-                title="Settings"
-                description="Manage your profile and account settings"
+                title="Pengaturan"
+                description="Kelola profil dan pengaturan akun Anda"
             />
 
             <div className="flex flex-col lg:flex-row lg:space-x-12">
                 <aside className="w-full max-w-xl lg:w-48">
                     <nav
                         className="flex flex-col space-y-1 space-x-0"
-                        aria-label="Settings"
+                        aria-label="Navigasi pengaturan"
                     >
                         {visibleItems.map((item, index) => (
                             <Button

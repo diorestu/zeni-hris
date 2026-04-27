@@ -6,8 +6,11 @@ use App\Models\Division;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Models\Position;
-use Illuminate\Support\Carbon;
+use App\Models\User;
+use App\Support\RoleRedirect;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -16,8 +19,15 @@ class DashboardController extends Controller
     /**
      * Display dashboard with HRIS overview and attendance chart.
      */
-    public function __invoke(Request $request): Response
+    public function __invoke(Request $request): Response|RedirectResponse
     {
+        /** @var User $user */
+        $user = $request->user();
+
+        if ($user->role === 'user') {
+            return redirect()->to(RoleRedirect::for($user));
+        }
+
         $validated = $request->validate([
             'range' => ['nullable', 'in:today,this_week,this_month'],
         ]);

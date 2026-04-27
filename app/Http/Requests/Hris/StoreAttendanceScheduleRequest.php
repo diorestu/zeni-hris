@@ -30,7 +30,7 @@ class StoreAttendanceScheduleRequest extends FormRequest
             'month' => ['required', 'date_format:Y-m'],
             'entries' => ['required', 'array', 'min:1'],
             'entries.*.date' => ['required', 'date'],
-            'entries.*.shift_code' => ['required', 'string', 'max:30'],
+            'entries.*.shift_code' => ['required', 'string', Rule::exists('work_shifts', 'code')->where('user_id', $ownerId)],
             'entries.*.start_time' => ['nullable', 'date_format:H:i'],
             'entries.*.end_time' => ['nullable', 'date_format:H:i'],
             'entries.*.is_day_off' => ['sometimes', 'boolean'],

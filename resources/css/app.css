@@ -9,7 +9,7 @@
 
 @theme {
     --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Geist', ui-sans-serif, system-ui, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 
@@ -59,6 +59,34 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Dark color system */
+    --color-dark-bg: var(--dark-bg);
+    --color-dark-surface: var(--dark-surface);
+    --color-dark-elevated: var(--dark-elevated);
+    --color-dark-primary: var(--dark-primary);
+    --color-dark-primary-hover: var(--dark-primary-hover);
+    --color-dark-text-primary: var(--dark-text-primary);
+    --color-dark-text-secondary: var(--dark-text-secondary);
+    --color-dark-text-muted: var(--dark-text-muted);
+    --color-dark-border: var(--dark-border);
+    --color-dark-success: var(--dark-success);
+    --color-dark-warning: var(--dark-warning);
+    --color-dark-danger: var(--dark-danger);
+
+    /* Light color system */
+    --color-light-bg: var(--light-bg);
+    --color-light-surface: var(--light-surface);
+    --color-light-elevated: var(--light-elevated);
+    --color-light-primary: var(--light-primary);
+    --color-light-primary-hover: var(--light-primary-hover);
+    --color-light-text-primary: var(--light-text-primary);
+    --color-light-text-secondary: var(--light-text-secondary);
+    --color-light-text-muted: var(--light-text-muted);
+    --color-light-border: var(--light-border);
+    --color-light-success: var(--light-success);
+    --color-light-warning: var(--light-warning);
+    --color-light-danger: var(--light-danger);
 }
 
 :root {
@@ -95,6 +123,34 @@
     --sidebar-accent-foreground: oklch(0.205 0 0);
     --sidebar-border: oklch(0.922 0 0);
     --sidebar-ring: oklch(0.87 0 0);
+
+    /* Dark color system */
+    --dark-bg: #0F1E20;
+    --dark-surface: #132629;
+    --dark-elevated: #183236;
+    --dark-primary: #00A0A8;
+    --dark-primary-hover: #008C93;
+    --dark-text-primary: #E6F2F3;
+    --dark-text-secondary: #9BB4B8;
+    --dark-text-muted: #5F777B;
+    --dark-border: #1F3A3E;
+    --dark-success: #2FAE8F;
+    --dark-warning: #C8A23C;
+    --dark-danger: #C65B5B;
+
+    /* Light color system */
+    --light-bg: #F4F8F9;
+    --light-surface: #FFFFFF;
+    --light-elevated: #EAF2F3;
+    --light-primary: #006069;
+    --light-primary-hover: #004C53;
+    --light-text-primary: #1B2B2E;
+    --light-text-secondary: #3F5E63;
+    --light-text-muted: #7A8F93;
+    --light-border: #D6E3E5;
+    --light-success: #1F8A70;
+    --light-warning: #C79B2C;
+    --light-danger: #C94F4F;
 }
 
 .dark {
@@ -130,6 +186,34 @@
     --sidebar-accent-foreground: oklch(0.985 0 0);
     --sidebar-border: oklch(0.269 0 0);
     --sidebar-ring: oklch(0.439 0 0);
+
+    /* Dark color system */
+    --dark-bg: #0F1E20;
+    --dark-surface: #132629;
+    --dark-elevated: #183236;
+    --dark-primary: #00A0A8;
+    --dark-primary-hover: #008C93;
+    --dark-text-primary: #E6F2F3;
+    --dark-text-secondary: #9BB4B8;
+    --dark-text-muted: #5F777B;
+    --dark-border: #1F3A3E;
+    --dark-success: #2FAE8F;
+    --dark-warning: #C8A23C;
+    --dark-danger: #C65B5B;
+
+    /* Light color system */
+    --light-bg: #F4F8F9;
+    --light-surface: #FFFFFF;
+    --light-elevated: #EAF2F3;
+    --light-primary: #006069;
+    --light-primary-hover: #004C53;
+    --light-text-primary: #1B2B2E;
+    --light-text-secondary: #3F5E63;
+    --light-text-muted: #7A8F93;
+    --light-border: #D6E3E5;
+    --light-success: #1F8A70;
+    --light-warning: #C79B2C;
+    --light-danger: #C94F4F;
 }
 
 @layer base {
@@ -139,5 +223,53 @@
 
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+@layer utilities {
+    .welcome-grid-bg {
+        background-image:
+            linear-gradient(to right, rgba(15, 86, 215, 0.06) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(15, 86, 215, 0.06) 1px, transparent 1px);
+        background-size: 44px 44px;
+    }
+
+    .logo-marquee {
+        position: relative;
+        overflow: hidden;
+        mask-image: linear-gradient(
+            to right,
+            transparent,
+            black 8%,
+            black 92%,
+            transparent
+        );
+    }
+
+    .logo-marquee-track {
+        display: flex;
+        width: max-content;
+        gap: 0.75rem;
+        animation: logo-marquee 30s linear infinite;
+    }
+
+    .logo-marquee:hover .logo-marquee-track {
+        animation-play-state: paused;
+    }
+}
+
+@keyframes logo-marquee {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .logo-marquee-track {
+        animation: none;
     }
 }

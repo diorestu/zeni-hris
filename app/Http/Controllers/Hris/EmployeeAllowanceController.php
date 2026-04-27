@@ -45,5 +45,16 @@ class EmployeeAllowanceController extends Controller
 
         return back();
     }
-}
 
+    /**
+     * Remove allowance from the employee.
+     */
+    public function destroy(Employee $employee, EmployeeAllowance $employeeAllowance): RedirectResponse
+    {
+        abort_if($employeeAllowance->employee_id !== $employee->id, 404);
+
+        $employeeAllowance->delete();
+
+        return back();
+    }
+}

@@ -50,12 +50,12 @@ const mainNavItems: NavItem[] = [
 
 const rightNavItems: NavItem[] = [
     {
-        title: 'Repository',
+        title: 'Repositori',
         href: 'https://github.com/laravel/react-starter-kit',
         icon: Folder,
     },
     {
-        title: 'Documentation',
+        title: 'Dokumentasi',
         href: 'https://laravel.com/docs/starter-kits#react',
         icon: BookOpen,
     },
@@ -90,7 +90,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                 className="flex h-full w-64 flex-col items-stretch justify-between bg-sidebar"
                             >
                                 <SheetTitle className="sr-only">
-                                    Navigation menu
+                                    Menu navigasi
                                 </SheetTitle>
                                 <SheetHeader className="flex justify-start text-left">
                                     <AppLogoIcon className="h-6 w-6 fill-current text-black dark:text-white" />
@@ -101,7 +101,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                             {mainNavItems.map((item) => (
                                                 <Link
                                                     key={item.title}
-                                                    href={item.href}
+                                                    href={toUrl(item.href)}
                                                     className="flex items-center space-x-2 font-medium"
                                                 >
                                                     {item.icon && (
@@ -135,7 +135,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                     </div>
 
                     <Link
-                        href={dashboard()}
+                        href={toUrl(dashboard())}
                         prefetch
                         className="flex items-center space-x-2"
                     >
@@ -152,7 +152,7 @@ export function AppHeader({ breadcrumbs = [] }: Props) {
                                         className="relative flex h-full items-center"
                                     >
                                         <Link
-                                            href={item.href}
+                                            href={toUrl(item.href)}
                                             className={cn(
                                                 navigationMenuTriggerStyle(),
                                                 whenCurrentUrl(

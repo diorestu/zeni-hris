@@ -35,4 +35,11 @@ return [
         ],
     ],
 
+    'waha' => [
+        'enabled' => env('WAHA_ENABLED', false),
+        'base_url' => env('WAHA_BASE_URL'),
+        'api_key' => env('WAHA_API_KEY'),
+        'timeout' => env('WAHA_TIMEOUT', 15),
+    ],
+
 ];

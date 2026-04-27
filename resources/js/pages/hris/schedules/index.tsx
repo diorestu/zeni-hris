@@ -2,6 +2,7 @@ import { Head, router, useForm, usePage } from '@inertiajs/react';
 import {
     CalendarDays,
     Filter,
+    Plus,
     RefreshCcw,
     Save,
     WandSparkles,
@@ -16,23 +17,23 @@ import {
     CardHeader,
     CardTitle,
 } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import SearchableSelect from '@/components/ui/searchable-select';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import {
     index as schedulesIndex,
     roster as scheduleRoster,
     store as scheduleStore,
 } from '@/routes/hris/schedules';
+import scheduleShifts from '@/routes/hris/schedules/shifts';
 import type { BreadcrumbItem } from '@/types';
 
 type EmployeeOption = {
@@ -61,10 +62,19 @@ type ShiftTemplate = {
     is_day_off: boolean;
 };
 
+type ShiftOption = {
+    id: number;
+    code: string;
+    name: string;
+    start_time: string | null;
+    end_time: string | null;
+    is_day_off: boolean;
+};
+
 type PageProps = {
     employees: EmployeeOption[];
     filters: Filters;
-    shiftOptions: string[];
+    shifts: ShiftOption[];
     scheduleDays: ScheduleDay[];
     shiftTemplates: Record<string, ShiftTemplate>;
 };
@@ -77,6 +87,28 @@ type RosterFormData = {
     pattern: string[];
 };
 
+type QuickScheduleFormData = {
+    employee_id: string;
+    work_date: string;
+    shift_code: string;
+    notes: string;
+};
+
+type ShiftFormData = {
+    start_time: string;
+    end_time: string;
+};
+
+type ScheduleRow = {
+    date: string;
+    label: string;
+    shift_code: string;
+    start_time: string;
+    end_time: string;
+    is_day_off: boolean;
+    notes: string;
+};
+
 const breadcrumbs: BreadcrumbItem[] = [
     {
         title: 'Jadwal Kerja',
@@ -84,29 +116,99 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+const buildShiftCodeFromTimes = (
+    startTime: string,
+    endTime: string,
+    isDayOff: boolean,
+) => {
+    if (isDayOff || startTime === '' || endTime === '') {
+        return 'OFF';
+    }
+
+    return `${startTime.slice(0, 2)}${endTime.slice(0, 2)}`;
+};
+
+const formatShiftTime = (shift: {
+    start_time: string | null;
+    end_time: string | null;
+    is_day_off: boolean;
+}) => {
+    if (shift.is_day_off) {
+        return 'Libur';
+    }
+
+    if (shift.start_time === null || shift.end_time === null) {
+        return '-';
+    }
+
+    return `${shift.start_time} - ${shift.end_time}`;
+};
+
 export default function SchedulePage() {
-    const { employees, filters, shiftOptions, scheduleDays, shiftTemplates } =
+    const { employees, filters, shifts, scheduleDays, shiftTemplates } =
         usePage<PageProps>().props;
 
     const [filterState, setFilterState] = useState<Filters>(filters);
-    const [scheduleRows, setScheduleRows] = useState<
-        Array<{
-            date: string;
-            label: string;
-            shift_code: string;
-            start_time: string;
-            end_time: string;
-            is_day_off: boolean;
-            notes: string;
-        }>
-    >([]);
+    const [quickDialogOpen, setQuickDialogOpen] = useState(false);
+    const [rosterDialogOpen, setRosterDialogOpen] = useState(false);
+    const [shiftDialogOpen, setShiftDialogOpen] = useState(false);
+    const [scheduleRows, setScheduleRows] = useState<ScheduleRow[]>([]);
+
+    const shiftOptions = useMemo(
+        () =>
+            shifts.map((shift) => ({
+                value: shift.code,
+                label: `${shift.code} - ${formatShiftTime(shift)}`,
+                keywords: `${shift.name} ${shift.start_time ?? ''} ${shift.end_time ?? ''}`,
+            })),
+        [shifts],
+    );
+
+    const shiftLookup = useMemo(
+        () => new Map(shifts.map((shift) => [shift.code, shift])),
+        [shifts],
+    );
+
+    const employeeLookup = useMemo(
+        () =>
+            new Map(
+                employees.map((employee) => [String(employee.id), employee.label]),
+            ),
+        [employees],
+    );
+
+    const defaultWorkingShiftCode = useMemo(
+        () => shifts.find((shift) => !shift.is_day_off)?.code ?? shifts[0]?.code ?? '',
+        [shifts],
+    );
+
+    const rosterPatternPlaceholder = useMemo(
+        () =>
+            shifts
+                .slice(0, 4)
+                .map((shift) => shift.code)
+                .join(',') || '0817,0918,1701,OFF',
+        [shifts],
+    );
 
     const rosterForm = useForm<RosterFormData>({
         employee_id: filters.employee_id,
         start_date: `${filters.month}-01`,
         end_date: `${filters.month}-07`,
-        pattern_text: 'SHIFT_A,SHIFT_B,SHIFT_C,OFF',
+        pattern_text: rosterPatternPlaceholder,
         pattern: [],
+    });
+
+    const quickScheduleForm = useForm<QuickScheduleFormData>({
+        employee_id: filters.employee_id,
+        work_date: `${filters.month}-01`,
+        shift_code: defaultWorkingShiftCode,
+        notes: '',
+    });
+
+    const shiftForm = useForm<ShiftFormData>({
+        start_time: '08:00',
+        end_time: '17:00',
     });
 
     useEffect(() => {
@@ -127,11 +229,15 @@ export default function SchedulePage() {
         );
     }, [scheduleDays]);
 
-    const employeeLookup = useMemo(() => {
-        return new Map(
-            employees.map((employee) => [String(employee.id), employee.label]),
+    const applyShiftSelection = (shiftCode: string): ShiftTemplate => {
+        return (
+            shiftTemplates[shiftCode] ?? {
+                start_time: null,
+                end_time: null,
+                is_day_off: true,
+            }
         );
-    }, [employees]);
+    };
 
     const applyFilter = () => {
         router.get(schedulesIndex.url(), filterState, {
@@ -139,6 +245,56 @@ export default function SchedulePage() {
             preserveScroll: true,
             replace: true,
         });
+    };
+
+    const openQuickScheduleDialog = () => {
+        quickScheduleForm.clearErrors();
+        quickScheduleForm.setData({
+            employee_id: filterState.employee_id,
+            work_date: `${filterState.month}-01`,
+            shift_code: defaultWorkingShiftCode,
+            notes: '',
+        });
+        setQuickDialogOpen(true);
+    };
+
+    const openRosterDialog = () => {
+        rosterForm.clearErrors();
+        rosterForm.setData({
+            employee_id: filterState.employee_id,
+            start_date: `${filterState.month}-01`,
+            end_date: `${filterState.month}-07`,
+            pattern_text: rosterPatternPlaceholder,
+            pattern: [],
+        });
+        setRosterDialogOpen(true);
+    };
+
+    const openShiftDialog = () => {
+        shiftForm.clearErrors();
+        shiftForm.setData({
+            start_time: '08:00',
+            end_time: '17:00',
+        });
+        setShiftDialogOpen(true);
+    };
+
+    const updateRowShift = (index: number, shiftCode: string) => {
+        const selectedShift = applyShiftSelection(shiftCode);
+
+        setScheduleRows((prev) =>
+            prev.map((item, itemIndex) =>
+                itemIndex === index
+                    ? {
+                          ...item,
+                          shift_code: shiftCode,
+                          start_time: selectedShift.start_time ?? '',
+                          end_time: selectedShift.end_time ?? '',
+                          is_day_off: selectedShift.is_day_off,
+                      }
+                    : item,
+            ),
+        );
     };
 
     const saveSchedule = () => {
@@ -177,8 +333,71 @@ export default function SchedulePage() {
 
         rosterForm.post(scheduleRoster.url(), {
             preserveScroll: true,
+            onSuccess: () => {
+                setRosterDialogOpen(false);
+            },
         });
     };
+
+    const saveQuickSchedule = () => {
+        const selectedShift = applyShiftSelection(quickScheduleForm.data.shift_code);
+
+        quickScheduleForm.transform((data) => ({
+            employee_id: data.employee_id,
+            month: data.work_date.slice(0, 7),
+            entries: [
+                {
+                    date: data.work_date,
+                    shift_code: data.shift_code,
+                    start_time: selectedShift.start_time,
+                    end_time: selectedShift.end_time,
+                    is_day_off: selectedShift.is_day_off,
+                    notes: data.notes || null,
+                },
+            ],
+        }));
+
+        quickScheduleForm.post(scheduleStore.url(), {
+            preserveScroll: true,
+            onSuccess: () => {
+                const nextFilters = {
+                    month: quickScheduleForm.data.work_date.slice(0, 7),
+                    employee_id: quickScheduleForm.data.employee_id,
+                };
+
+                setQuickDialogOpen(false);
+                setFilterState(nextFilters);
+                quickScheduleForm.reset();
+
+                router.get(schedulesIndex.url(), nextFilters, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                });
+            },
+        });
+    };
+
+    const saveShift = () => {
+        shiftForm.post(scheduleShifts.store.url(), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShiftDialogOpen(false);
+                router.get(schedulesIndex.url(), filterState, {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                });
+            },
+        });
+    };
+
+    const quickShift = shiftLookup.get(quickScheduleForm.data.shift_code);
+    const shiftPreviewCode = buildShiftCodeFromTimes(
+        shiftForm.data.start_time,
+        shiftForm.data.end_time,
+        false,
+    );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -186,11 +405,27 @@ export default function SchedulePage() {
 
             <div className="space-y-4 p-4">
                 <Card>
-                    <CardHeader>
-                        <CardTitle>Filter Jadwal</CardTitle>
-                        <CardDescription>
-                            Pilih karyawan dan bulan untuk melihat jadwal kerja.
-                        </CardDescription>
+                    <CardHeader className="flex flex-row items-start justify-between gap-3">
+                        <div>
+                            <CardTitle>Filter Jadwal</CardTitle>
+                            <CardDescription>
+                                Pilih karyawan dan bulan untuk melihat jadwal kerja.
+                            </CardDescription>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <Button type="button" variant="outline" onClick={openShiftDialog}>
+                                <Plus className="size-4" />
+                                Tambah Shift
+                            </Button>
+                            <Button type="button" variant="outline" onClick={openRosterDialog}>
+                                <WandSparkles className="size-4" />
+                                Roster Shift Otomatis
+                            </Button>
+                            <Button type="button" onClick={openQuickScheduleDialog}>
+                                <Plus className="size-4" />
+                                Tambah Jam Kerja
+                            </Button>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <div className="grid gap-3 md:grid-cols-[220px_260px_auto]">
@@ -213,9 +448,7 @@ export default function SchedulePage() {
                                 </div>
                             </div>
                             <div className="grid gap-2">
-                                <Label htmlFor="filter_employee">
-                                    Karyawan
-                                </Label>
+                                <Label htmlFor="filter_employee">Karyawan</Label>
                                 <SearchableSelect
                                     id="filter_employee"
                                     value={
@@ -226,8 +459,7 @@ export default function SchedulePage() {
                                     onValueChange={(value) =>
                                         setFilterState((prev) => ({
                                             ...prev,
-                                            employee_id:
-                                                value === '__none' ? '' : value,
+                                            employee_id: value === '__none' ? '' : value,
                                         }))
                                     }
                                     placeholder="Pilih karyawan"
@@ -252,23 +484,18 @@ export default function SchedulePage() {
                                     variant="outline"
                                     onClick={() => {
                                         const reset = {
-                                            month: new Date()
-                                                .toISOString()
-                                                .slice(0, 7),
+                                            month: new Date().toISOString().slice(0, 7),
                                             employee_id: employees[0]
                                                 ? String(employees[0].id)
                                                 : '',
                                         };
+
                                         setFilterState(reset);
-                                        router.get(
-                                            schedulesIndex.url(),
-                                            reset,
-                                            {
-                                                preserveState: true,
-                                                preserveScroll: true,
-                                                replace: true,
-                                            },
-                                        );
+                                        router.get(schedulesIndex.url(), reset, {
+                                            preserveState: true,
+                                            preserveScroll: true,
+                                            replace: true,
+                                        });
                                     }}
                                 >
                                     <RefreshCcw className="size-4" />
@@ -281,111 +508,40 @@ export default function SchedulePage() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Roster Shift Otomatis</CardTitle>
+                        <CardTitle>Daftar Shift Tersedia</CardTitle>
                         <CardDescription>
-                            Generate jadwal berdasarkan pola shift. Contoh pola:
-                            `SHIFT_A,SHIFT_B,SHIFT_C,OFF`.
+                            Shift yang ditambahkan di popup akan muncul di sini dan bisa dipilih
+                            pada jadwal bulanan.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <div className="grid gap-2">
-                                <Label htmlFor="roster_employee">
-                                    Karyawan
-                                </Label>
-                                <SearchableSelect
-                                    id="roster_employee"
-                                    value={
-                                        rosterForm.data.employee_id === ''
-                                            ? '__none'
-                                            : rosterForm.data.employee_id
-                                    }
-                                    onValueChange={(value) =>
-                                        rosterForm.setData(
-                                            'employee_id',
-                                            value === '__none' ? '' : value,
-                                        )
-                                    }
-                                    placeholder="Pilih karyawan"
-                                    searchPlaceholder="Cari karyawan..."
-                                    options={[
-                                        { value: '__none', label: '-' },
-                                        ...employees.map((employee) => ({
-                                            value: String(employee.id),
-                                            label: employee.label,
-                                        })),
-                                    ]}
-                                    className="w-full"
-                                />
-                                <InputError
-                                    message={rosterForm.errors.employee_id}
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="pattern_text">Pola Shift</Label>
-                                <Input
-                                    id="pattern_text"
-                                    value={rosterForm.data.pattern_text}
-                                    onChange={(event) =>
-                                        rosterForm.setData(
-                                            'pattern_text',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                                <InputError
-                                    message={rosterForm.errors.pattern}
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="start_date">
-                                    Tanggal Mulai
-                                </Label>
-                                <Input
-                                    id="start_date"
-                                    type="date"
-                                    value={rosterForm.data.start_date}
-                                    onChange={(event) =>
-                                        rosterForm.setData(
-                                            'start_date',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                                <InputError
-                                    message={rosterForm.errors.start_date}
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="end_date">
-                                    Tanggal Selesai
-                                </Label>
-                                <Input
-                                    id="end_date"
-                                    type="date"
-                                    value={rosterForm.data.end_date}
-                                    onChange={(event) =>
-                                        rosterForm.setData(
-                                            'end_date',
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                                <InputError
-                                    message={rosterForm.errors.end_date}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-3 flex items-center justify-end">
-                            <Button
-                                type="button"
-                                onClick={applyRoster}
-                                disabled={rosterForm.processing}
-                            >
-                                <WandSparkles className="size-4" />
-                                Terapkan Roster
-                            </Button>
+                        <div className="overflow-x-auto">
+                            <table className="w-full min-w-[640px] text-sm">
+                                <thead>
+                                    <tr className="border-b text-left">
+                                        <th className="px-2 py-2">Kode</th>
+                                        <th className="px-2 py-2">Nama</th>
+                                        <th className="px-2 py-2">Jam Kerja</th>
+                                        <th className="px-2 py-2">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {shifts.map((shift) => (
+                                        <tr key={shift.id} className="border-b">
+                                            <td className="px-2 py-2 font-medium">
+                                                {shift.code}
+                                            </td>
+                                            <td className="px-2 py-2">{shift.name}</td>
+                                            <td className="px-2 py-2">
+                                                {formatShiftTime(shift)}
+                                            </td>
+                                            <td className="px-2 py-2">
+                                                {shift.is_day_off ? 'Day Off' : 'Aktif'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     </CardContent>
                 </Card>
@@ -395,16 +551,14 @@ export default function SchedulePage() {
                         <div>
                             <CardTitle>Schedule Bulanan</CardTitle>
                             <CardDescription>
-                                Karyawan:{' '}
-                                {employeeLookup.get(filterState.employee_id) ??
-                                    '-'}{' '}
-                                | Bulan: {filterState.month}
+                                Karyawan: {employeeLookup.get(filterState.employee_id) ?? '-'} |
+                                {' '}Bulan: {filterState.month}
                             </CardDescription>
                         </div>
                         <Button
                             type="button"
                             onClick={saveSchedule}
-                            disabled={scheduleRows.length === 0}
+                            disabled={scheduleRows.length === 0 || filterState.employee_id === ''}
                         >
                             <Save className="size-4" />
                             Simpan Jadwal
@@ -416,10 +570,10 @@ export default function SchedulePage() {
                                 <thead>
                                     <tr className="border-b text-left">
                                         <th className="px-2 py-2">Tanggal</th>
-                                        <th className="px-2 py-2">Shift</th>
-                                        <th className="px-2 py-2">Masuk</th>
-                                        <th className="px-2 py-2">Pulang</th>
-                                        <th className="px-2 py-2">Day Off</th>
+                                        <th className="px-2 py-2">Kode Shift</th>
+                                        <th className="px-2 py-2">Jam Masuk</th>
+                                        <th className="px-2 py-2">Jam Pulang</th>
+                                        <th className="px-2 py-2">Status</th>
                                         <th className="px-2 py-2">Catatan</th>
                                     </tr>
                                 </thead>
@@ -430,199 +584,47 @@ export default function SchedulePage() {
                                                 colSpan={6}
                                                 className="px-2 py-6 text-center text-muted-foreground"
                                             >
-                                                Tidak ada jadwal pada filter
-                                                ini.
+                                                Tidak ada jadwal pada filter ini.
                                             </td>
                                         </tr>
                                     )}
                                     {scheduleRows.map((row, index) => (
                                         <tr key={row.date} className="border-b">
+                                            <td className="px-2 py-2">{row.label}</td>
                                             <td className="px-2 py-2">
-                                                {row.label}
-                                            </td>
-                                            <td className="px-2 py-2">
-                                                <Select
+                                                <SearchableSelect
                                                     value={row.shift_code}
-                                                    onValueChange={(value) => {
-                                                        const template =
-                                                            shiftTemplates[
-                                                                value
-                                                            ];
-                                                        const isOff =
-                                                            value === 'OFF';
-                                                        setScheduleRows(
-                                                            (prev) =>
-                                                                prev.map(
-                                                                    (
-                                                                        item,
-                                                                        itemIndex,
-                                                                    ) =>
-                                                                        itemIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...item,
-                                                                                  shift_code:
-                                                                                      value,
-                                                                                  is_day_off:
-                                                                                      isOff ||
-                                                                                      Boolean(
-                                                                                          template?.is_day_off,
-                                                                                      ),
-                                                                                  start_time:
-                                                                                      template?.start_time ??
-                                                                                      (isOff
-                                                                                          ? ''
-                                                                                          : item.start_time),
-                                                                                  end_time:
-                                                                                      template?.end_time ??
-                                                                                      (isOff
-                                                                                          ? ''
-                                                                                          : item.end_time),
-                                                                              }
-                                                                            : item,
-                                                                ),
-                                                        );
-                                                    }}
-                                                >
-                                                    <SelectTrigger className="w-[150px]">
-                                                        <SelectValue placeholder="Shift" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {shiftOptions.map(
-                                                            (shift) => (
-                                                                <SelectItem
-                                                                    key={shift}
-                                                                    value={
-                                                                        shift
-                                                                    }
-                                                                >
-                                                                    {shift}
-                                                                </SelectItem>
-                                                            ),
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </td>
-                                            <td className="px-2 py-2">
-                                                <Input
-                                                    type="time"
-                                                    value={row.start_time}
-                                                    onChange={(event) =>
-                                                        setScheduleRows(
-                                                            (prev) =>
-                                                                prev.map(
-                                                                    (
-                                                                        item,
-                                                                        itemIndex,
-                                                                    ) =>
-                                                                        itemIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...item,
-                                                                                  start_time:
-                                                                                      event
-                                                                                          .target
-                                                                                          .value,
-                                                                              }
-                                                                            : item,
-                                                                ),
-                                                        )
+                                                    onValueChange={(value) =>
+                                                        updateRowShift(index, value)
                                                     }
-                                                    disabled={row.is_day_off}
+                                                    placeholder="Pilih shift"
+                                                    searchPlaceholder="Cari kode shift..."
+                                                    options={shiftOptions}
+                                                    className="min-w-[220px]"
                                                 />
                                             </td>
                                             <td className="px-2 py-2">
-                                                <Input
-                                                    type="time"
-                                                    value={row.end_time}
-                                                    onChange={(event) =>
-                                                        setScheduleRows(
-                                                            (prev) =>
-                                                                prev.map(
-                                                                    (
-                                                                        item,
-                                                                        itemIndex,
-                                                                    ) =>
-                                                                        itemIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...item,
-                                                                                  end_time:
-                                                                                      event
-                                                                                          .target
-                                                                                          .value,
-                                                                              }
-                                                                            : item,
-                                                                ),
-                                                        )
-                                                    }
-                                                    disabled={row.is_day_off}
-                                                />
+                                                <Input value={row.start_time} readOnly />
                                             </td>
                                             <td className="px-2 py-2">
-                                                <div className="flex items-center justify-center">
-                                                    <Checkbox
-                                                        checked={row.is_day_off}
-                                                        onCheckedChange={(
-                                                            checked,
-                                                        ) => {
-                                                            const isDayOff =
-                                                                checked ===
-                                                                true;
-                                                            setScheduleRows(
-                                                                (prev) =>
-                                                                    prev.map(
-                                                                        (
-                                                                            item,
-                                                                            itemIndex,
-                                                                        ) =>
-                                                                            itemIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...item,
-                                                                                      is_day_off:
-                                                                                          isDayOff,
-                                                                                      shift_code:
-                                                                                          isDayOff
-                                                                                              ? 'OFF'
-                                                                                              : item.shift_code,
-                                                                                      start_time:
-                                                                                          isDayOff
-                                                                                              ? ''
-                                                                                              : item.start_time,
-                                                                                      end_time:
-                                                                                          isDayOff
-                                                                                              ? ''
-                                                                                              : item.end_time,
-                                                                                  }
-                                                                                : item,
-                                                                    ),
-                                                            );
-                                                        }}
-                                                    />
-                                                </div>
+                                                <Input value={row.end_time} readOnly />
+                                            </td>
+                                            <td className="px-2 py-2 text-center">
+                                                {row.is_day_off ? 'Day Off' : 'Kerja'}
                                             </td>
                                             <td className="px-2 py-2">
                                                 <Input
                                                     value={row.notes}
                                                     onChange={(event) =>
-                                                        setScheduleRows(
-                                                            (prev) =>
-                                                                prev.map(
-                                                                    (
-                                                                        item,
-                                                                        itemIndex,
-                                                                    ) =>
-                                                                        itemIndex ===
-                                                                        index
-                                                                            ? {
-                                                                                  ...item,
-                                                                                  notes: event
-                                                                                      .target
-                                                                                      .value,
-                                                                              }
-                                                                            : item,
-                                                                ),
+                                                        setScheduleRows((prev) =>
+                                                            prev.map((item, itemIndex) =>
+                                                                itemIndex === index
+                                                                    ? {
+                                                                          ...item,
+                                                                          notes: event.target.value,
+                                                                      }
+                                                                    : item,
+                                                            ),
                                                         )
                                                     }
                                                     placeholder="Opsional"
@@ -636,6 +638,314 @@ export default function SchedulePage() {
                     </CardContent>
                 </Card>
             </div>
+
+            <Dialog
+                open={shiftDialogOpen}
+                onOpenChange={(open) => {
+                    setShiftDialogOpen(open);
+                    if (!open) {
+                        shiftForm.clearErrors();
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Tambah Shift</DialogTitle>
+                        <DialogDescription>
+                            Kode shift akan dibuat otomatis dari jam mulai dan jam selesai.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2">
+                            <Label htmlFor="shift_start_time">Jam Mulai</Label>
+                            <Input
+                                id="shift_start_time"
+                                type="time"
+                                value={shiftForm.data.start_time}
+                                onChange={(event) =>
+                                    shiftForm.setData('start_time', event.target.value)
+                                }
+                            />
+                            <InputError message={shiftForm.errors.start_time} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="shift_end_time">Jam Selesai</Label>
+                            <Input
+                                id="shift_end_time"
+                                type="time"
+                                value={shiftForm.data.end_time}
+                                onChange={(event) =>
+                                    shiftForm.setData('end_time', event.target.value)
+                                }
+                            />
+                            <InputError message={shiftForm.errors.end_time} />
+                        </div>
+
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label htmlFor="shift_preview_code">Preview Kode Shift</Label>
+                            <Input
+                                id="shift_preview_code"
+                                value={shiftPreviewCode}
+                                readOnly
+                                className="font-medium"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setShiftDialogOpen(false)}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={saveShift}
+                            disabled={shiftForm.processing}
+                        >
+                            <Save className="size-4" />
+                            Simpan Shift
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={rosterDialogOpen}
+                onOpenChange={(open) => {
+                    setRosterDialogOpen(open);
+                    if (!open) {
+                        rosterForm.clearErrors();
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Roster Shift Otomatis</DialogTitle>
+                        <DialogDescription>
+                            Generate jadwal berdasarkan pola kode shift. Contoh:
+                            {' '}`{rosterPatternPlaceholder}`.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label htmlFor="roster_employee">Karyawan</Label>
+                            <SearchableSelect
+                                id="roster_employee"
+                                value={
+                                    rosterForm.data.employee_id === ''
+                                        ? '__none'
+                                        : rosterForm.data.employee_id
+                                }
+                                onValueChange={(value) =>
+                                    rosterForm.setData(
+                                        'employee_id',
+                                        value === '__none' ? '' : value,
+                                    )
+                                }
+                                placeholder="Pilih karyawan"
+                                searchPlaceholder="Cari karyawan..."
+                                options={[
+                                    { value: '__none', label: '-' },
+                                    ...employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.label,
+                                    })),
+                                ]}
+                                className="w-full"
+                            />
+                            <InputError message={rosterForm.errors.employee_id} />
+                        </div>
+
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label htmlFor="pattern_text">Pola Shift</Label>
+                            <Input
+                                id="pattern_text"
+                                value={rosterForm.data.pattern_text}
+                                onChange={(event) =>
+                                    rosterForm.setData('pattern_text', event.target.value)
+                                }
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                Shift tersedia: {shifts.map((shift) => shift.code).join(', ')}
+                            </p>
+                            <InputError message={rosterForm.errors.pattern} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="start_date">Tanggal Mulai</Label>
+                            <Input
+                                id="start_date"
+                                type="date"
+                                value={rosterForm.data.start_date}
+                                onChange={(event) =>
+                                    rosterForm.setData('start_date', event.target.value)
+                                }
+                            />
+                            <InputError message={rosterForm.errors.start_date} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="end_date">Tanggal Selesai</Label>
+                            <Input
+                                id="end_date"
+                                type="date"
+                                value={rosterForm.data.end_date}
+                                onChange={(event) =>
+                                    rosterForm.setData('end_date', event.target.value)
+                                }
+                            />
+                            <InputError message={rosterForm.errors.end_date} />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setRosterDialogOpen(false)}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={applyRoster}
+                            disabled={rosterForm.processing}
+                        >
+                            <WandSparkles className="size-4" />
+                            Terapkan Roster
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={quickDialogOpen}
+                onOpenChange={(open) => {
+                    setQuickDialogOpen(open);
+                    if (!open) {
+                        quickScheduleForm.clearErrors();
+                    }
+                }}
+            >
+                <DialogContent className="sm:max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Tambah Jam Kerja</DialogTitle>
+                        <DialogDescription>
+                            Tambahkan satu entri jadwal dengan memilih shift yang sudah tersedia.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label htmlFor="quick_employee">Karyawan</Label>
+                            <SearchableSelect
+                                id="quick_employee"
+                                value={
+                                    quickScheduleForm.data.employee_id === ''
+                                        ? '__none'
+                                        : quickScheduleForm.data.employee_id
+                                }
+                                onValueChange={(value) =>
+                                    quickScheduleForm.setData(
+                                        'employee_id',
+                                        value === '__none' ? '' : value,
+                                    )
+                                }
+                                placeholder="Pilih karyawan"
+                                searchPlaceholder="Cari karyawan..."
+                                options={[
+                                    { value: '__none', label: '-' },
+                                    ...employees.map((employee) => ({
+                                        value: String(employee.id),
+                                        label: employee.label,
+                                    })),
+                                ]}
+                                className="w-full"
+                            />
+                            <InputError message={quickScheduleForm.errors.employee_id} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="quick_work_date">Tanggal</Label>
+                            <Input
+                                id="quick_work_date"
+                                type="date"
+                                value={quickScheduleForm.data.work_date}
+                                onChange={(event) =>
+                                    quickScheduleForm.setData('work_date', event.target.value)
+                                }
+                            />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label htmlFor="quick_shift_code">Kode Shift</Label>
+                            <SearchableSelect
+                                id="quick_shift_code"
+                                value={quickScheduleForm.data.shift_code}
+                                onValueChange={(value) =>
+                                    quickScheduleForm.setData('shift_code', value)
+                                }
+                                placeholder="Pilih shift"
+                                searchPlaceholder="Cari shift..."
+                                options={shiftOptions}
+                                className="w-full"
+                            />
+                            <InputError message={quickScheduleForm.errors.shift_code} />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Jam Masuk</Label>
+                            <Input value={quickShift?.start_time ?? ''} readOnly />
+                        </div>
+
+                        <div className="grid gap-2">
+                            <Label>Jam Pulang</Label>
+                            <Input value={quickShift?.end_time ?? ''} readOnly />
+                        </div>
+
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label>Status Shift</Label>
+                            <Input value={quickShift?.is_day_off ? 'Day Off' : 'Hari Kerja'} readOnly />
+                        </div>
+
+                        <div className="grid gap-2 md:col-span-2">
+                            <Label htmlFor="quick_notes">Catatan</Label>
+                            <Input
+                                id="quick_notes"
+                                value={quickScheduleForm.data.notes}
+                                onChange={(event) =>
+                                    quickScheduleForm.setData('notes', event.target.value)
+                                }
+                                placeholder="Opsional"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setQuickDialogOpen(false)}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            type="button"
+                            onClick={saveQuickSchedule}
+                            disabled={quickScheduleForm.processing}
+                        >
+                            <Save className="size-4" />
+                            Simpan Jam Kerja
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

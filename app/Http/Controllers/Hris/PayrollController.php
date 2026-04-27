@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Hris;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hris\GeneratePayrollRequest;
 use App\Models\Employee;
+use App\Models\EmployeeAttendance;
+use App\Models\EmployeeDeduction;
 use App\Models\PayrollRun;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -58,6 +60,11 @@ class PayrollController extends Controller
                         : '-',
                     'base_salary' => $item->base_salary,
                     'allowances_total' => $item->allowances_total,
+                    'pph21_method' => $item->pph21_method,
+                    'pph21_rate' => $item->pph21_rate,
+                    'pph21_allowance' => $item->pph21_allowance,
+                    'pph21_deduction' => $item->pph21_deduction,
+                    'pph21_company_borne' => $item->pph21_company_borne,
                     'kasbon_deduction' => $item->kasbon_deduction,
                     'denda_deduction' => $item->denda_deduction,
                     'deductions_total' => $item->deductions_total,
@@ -73,6 +80,7 @@ class PayrollController extends Controller
      */
     public function generate(GeneratePayrollRequest $request): RedirectResponse
     {
+        $ownerId = $request->user()->accountOwnerId();
         $period = $request->validated('period');
         $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
         $end = $start->copy()->endOfMonth();
@@ -102,9 +110,12 @@ class PayrollController extends Controller
             ->orderBy('last_name')
             ->get();
 
-        DB::transaction(function () use ($employees, $period, $start, $end, $request): void {
+        DB::transaction(function () use ($employees, $ownerId, $period, $start, $end, $request): void {
             $run = PayrollRun::query()->updateOrCreate(
-                ['period' => $period],
+                [
+                    'user_id' => $ownerId,
+                    'period' => $period,
+                ],
                 [
                     'period_start' => $start->toDateString(),
                     'period_end' => $end->toDateString(),
@@ -116,7 +127,7 @@ class PayrollController extends Controller
                 ]
             );
 
-            $items = $employees->map(function (Employee $employee) use ($run): array {
+            $items = $employees->map(function (Employee $employee) use ($run, $start, $end): array {
                 $baseSalary = (float) ($employee->base_salary ?? 0);
 
                 $allowanceGrouped = $employee->allowances
@@ -126,22 +137,86 @@ class PayrollController extends Controller
 
                 $allowancesTotal = round((float) $allowanceGrouped->sum(), 2);
 
-                $kasbonDeduction = round((float) $employee->deductions
+                $pph21Method = (string) ($employee->pph21_method ?? 'gross');
+                $pph21Rate = round((float) ($employee->pph21_rate ?? 0), 2);
+                $pph21RateFraction = $pph21Rate / 100;
+
+                $workingDays = 0;
+
+                if ($pph21Method === 'ter_harian') {
+                    $workingDays = EmployeeAttendance::query()
+                        ->where('employee_id', $employee->id)
+                        ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
+                        ->whereIn('status', ['present', 'late'])
+                        ->count();
+                }
+
+                $dailyBase = $workingDays > 0
+                    ? round($baseSalary / max($workingDays, 1), 2)
+                    : 0;
+
+                $dailyAllowance = $workingDays > 0
+                    ? round($allowancesTotal / max($workingDays, 1), 2)
+                    : 0;
+
+                $taxableGross = $pph21Method === 'ter_harian'
+                    ? round(($dailyBase + $dailyAllowance) * $workingDays, 2)
+                    : round($baseSalary + $allowancesTotal, 2);
+
+                // Get PTKP value from config
+                $ptkpConfig = config('ptkp.categories');
+                $ptkpCategory = (string) ($employee->ptkp_category ?? 'TK/0');
+                $ptkpMonthly = (float) ($ptkpConfig[$ptkpCategory]['monthly'] ?? 0);
+
+                // Calculate taxable income after PTKP deduction
+                $taxableIncome = max($taxableGross - $ptkpMonthly, 0);
+
+                $pph21Allowance = 0;
+                $pph21Deduction = 0;
+                $pph21CompanyBorne = 0;
+
+                if ($pph21Method === 'gross') {
+                    $pph21Deduction = floor($taxableIncome * $pph21RateFraction * 100) / 100;
+                }
+
+                if ($pph21Method === 'net') {
+                    $pph21CompanyBorne = floor($taxableIncome * $pph21RateFraction * 100) / 100;
+                }
+
+                if ($pph21Method === 'gross_up') {
+                    // Gross-up: allowance covers the tax
+                    // PPh21_allowance = taxable_gross * rate / (1 - rate)
+                    if ($pph21RateFraction > 0 && $pph21RateFraction < 1) {
+                        $pph21Allowance = floor($taxableGross * $pph21RateFraction / (1 - $pph21RateFraction) * 100) / 100;
+                        $pph21Deduction = $pph21Allowance;
+                    }
+                }
+
+                if ($pph21Method === 'ter_harian') {
+                    $pph21Deduction = floor($taxableIncome * $pph21RateFraction * 100) / 100;
+                }
+
+                $kasbonDeduction = round((float) EmployeeDeduction::where('employee_id', $employee->id)
                     ->where('type', 'kasbon')
                     ->sum('amount'), 2);
 
-                $dendaDeduction = round((float) $employee->deductions
+                $dendaDeduction = round((float) EmployeeDeduction::where('employee_id', $employee->id)
                     ->where('type', 'denda')
                     ->sum('amount'), 2);
 
-                $deductionsTotal = round($kasbonDeduction + $dendaDeduction, 2);
-                $netSalary = round(max(($baseSalary + $allowancesTotal) - $deductionsTotal, 0), 2);
+                $deductionsTotal = round($kasbonDeduction + $dendaDeduction + $pph21Deduction, 2);
+                $netSalary = round(max(($baseSalary + $allowancesTotal + $pph21Allowance) - ($kasbonDeduction + $dendaDeduction + $pph21Deduction), 0), 2);
 
                 return [
                     'payroll_run_id' => $run->id,
                     'employee_id' => $employee->id,
                     'base_salary' => $baseSalary,
                     'allowances_total' => $allowancesTotal,
+                    'pph21_method' => $pph21Method,
+                    'pph21_rate' => $pph21Rate,
+                    'pph21_allowance' => $pph21Allowance,
+                    'pph21_deduction' => $pph21Deduction,
+                    'pph21_company_borne' => $pph21CompanyBorne,
                     'kasbon_deduction' => $kasbonDeduction,
                     'denda_deduction' => $dendaDeduction,
                     'deductions_total' => $deductionsTotal,

@@ -41,6 +41,11 @@ type PayrollItem = {
     employee_label: string;
     base_salary: string;
     allowances_total: string;
+    pph21_method: string | null;
+    pph21_rate: string | number;
+    pph21_allowance: string | number;
+    pph21_deduction: string | number;
+    pph21_company_borne: string | number;
     kasbon_deduction: string;
     denda_deduction: string;
     deductions_total: string;
@@ -75,6 +80,26 @@ const parseEmployeeLabel = (label: string) => {
         code: code ?? '-',
         name: nameParts.join(' - ') || label,
     };
+};
+
+const pph21Label = (method: string | null) => {
+    if (method === 'ter_harian') {
+        return 'TER Harian';
+    }
+
+    if (method === 'gross') {
+        return 'Gross';
+    }
+
+    if (method === 'net') {
+        return 'Net';
+    }
+
+    if (method === 'gross_up') {
+        return 'Gross Up';
+    }
+
+    return '-';
 };
 
 export default function PayrollPage() {
@@ -208,9 +233,9 @@ export default function PayrollPage() {
                                     className="whitespace-nowrap"
                                 >
                                     <Calculator className="size-4" />
-                                    {generateForm.processing
-                                        ? 'Generating...'
-                                        : 'Generate Payroll'}
+                                     {generateForm.processing
+                                         ? 'Memproses...'
+                                         : 'Generate Payroll'}
                                 </Button>
                             </div>
                             <div className="flex items-end">
@@ -242,7 +267,7 @@ export default function PayrollPage() {
                     </Card>
                     <Card className="gap-2 py-3">
                         <CardHeader className="px-4 pb-0">
-                            <CardDescription>Total Gross</CardDescription>
+                            <CardDescription>Total Bruto</CardDescription>
                             <CardTitle className="text-2xl">
                                 {formatCurrency(totals.gross)}
                             </CardTitle>
@@ -291,6 +316,7 @@ export default function PayrollPage() {
                                             Gaji Pokok
                                         </th>
                                         <th className="px-3 py-2">Tunjangan</th>
+                                        <th className="px-3 py-2">PPh21</th>
                                         <th className="px-3 py-2">Kasbon</th>
                                         <th className="px-3 py-2">Denda</th>
                                         <th className="px-3 py-2">
@@ -305,7 +331,7 @@ export default function PayrollPage() {
                                     {items.length === 0 && (
                                         <tr>
                                             <td
-                                                colSpan={7}
+                                                colSpan={8}
                                                 className="px-3 py-8 text-center text-muted-foreground"
                                             >
                                                 Belum ada data payroll di
@@ -372,6 +398,44 @@ export default function PayrollPage() {
                                                             )}
                                                         </Badge>
                                                     ))}
+                                                </div>
+                                            </td>
+                                            <td className="px-3 py-3">
+                                                <div className="space-y-1">
+                                                    <p className="font-medium">
+                                                        {pph21Label(
+                                                            item.pph21_method,
+                                                        )}{' '}
+                                                        ·{' '}
+                                                        {Number(
+                                                            item.pph21_rate ??
+                                                                0,
+                                                        )}
+                                                        %
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Potongan:{' '}
+                                                        {formatCurrency(
+                                                            item.pph21_deduction,
+                                                        )}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Tunjangan:{' '}
+                                                        {formatCurrency(
+                                                            item.pph21_allowance,
+                                                        )}
+                                                    </p>
+                                                    {Number(
+                                                        item.pph21_company_borne ??
+                                                            0,
+                                                    ) > 0 ? (
+                                                        <p className="text-xs text-muted-foreground">
+                                                            Ditanggung perusahaan:{' '}
+                                                            {formatCurrency(
+                                                                item.pph21_company_borne,
+                                                            )}
+                                                        </p>
+                                                    ) : null}
                                                 </div>
                                             </td>
                                             <td className="px-3 py-3">
