@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Hris;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Hris\GeneratePayrollRequest;
+use App\Jobs\SendPayslipToWhatsApp;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Models\EmployeeDeduction;
+use App\Models\PayrollItem;
 use App\Models\PayrollRun;
+use App\Support\WhatsAppPhone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -30,7 +33,7 @@ class PayrollController extends Controller
 
         $run = PayrollRun::query()
             ->with([
-                'items.employee:id,employee_code,first_name,last_name',
+                'items.employee:id,employee_code,first_name,last_name,phone',
             ])
             ->where('period', $period)
             ->first();
@@ -58,6 +61,9 @@ class PayrollController extends Controller
                     'employee_label' => $item->employee
                         ? $item->employee->employee_code.' - '.$item->employee->full_name
                         : '-',
+                    'can_send_payslip' => $item->employee?->phone
+                        ? WhatsAppPhone::isValid($item->employee->phone)
+                        : false,
                     'base_salary' => $item->base_salary,
                     'allowances_total' => $item->allowances_total,
                     'pph21_method' => $item->pph21_method,
@@ -262,5 +268,68 @@ class PayrollController extends Controller
         ]);
 
         return to_route('hris.payrolls.index', ['period' => $payrollRun->period]);
+    }
+
+    public function sendPayslips(PayrollRun $payrollRun, Request $request): RedirectResponse
+    {
+        if (! $payrollRun->is_saved) {
+            return back()->with('error', 'Simpan payroll terlebih dahulu sebelum mengirim payslip ke WhatsApp.');
+        }
+
+        $payrollRun->loadMissing([
+            'items.employee:id,employee_code,first_name,last_name,email,phone,division_id,position_id',
+            'items.employee.division:id,name',
+            'items.employee.position:id,name',
+        ]);
+
+        if ($payrollRun->items->isEmpty()) {
+            return back()->with('error', 'Tidak ada item payroll yang bisa dikirim.');
+        }
+
+        $ownerId = $request->user()->accountOwnerId();
+        $queued = 0;
+        $skipped = 0;
+
+        foreach ($payrollRun->items as $item) {
+            $employee = $item->employee;
+
+            if (! $employee || ! $employee->phone || ! WhatsAppPhone::isValid($employee->phone)) {
+                $skipped++;
+
+                continue;
+            }
+
+            SendPayslipToWhatsApp::dispatch($item->id, $ownerId)
+                ->delay(now()->addSeconds(intdiv($queued, 10) * 60));
+
+            $queued++;
+        }
+
+        $message = sprintf(
+            'Payslip masuk queue untuk %d karyawan. %d dilewati karena nomor WhatsApp tidak valid.',
+            $queued,
+            $skipped,
+        );
+
+        return back()->with($queued > 0 ? 'success' : 'error', $message);
+    }
+
+    public function sendPayslip(PayrollRun $payrollRun, PayrollItem $payrollItem, Request $request): RedirectResponse
+    {
+        if (! $payrollRun->is_saved) {
+            return back()->with('error', 'Simpan payroll terlebih dahulu sebelum mengirim payslip ke WhatsApp.');
+        }
+
+        abort_unless((int) $payrollItem->payroll_run_id === (int) $payrollRun->id, 404);
+
+        $payrollItem->loadMissing('employee:id,employee_code,first_name,last_name,phone');
+
+        if (! $payrollItem->employee?->phone || ! WhatsAppPhone::isValid($payrollItem->employee->phone)) {
+            return back()->with('error', 'Nomor WhatsApp karyawan tidak valid.');
+        }
+
+        SendPayslipToWhatsApp::dispatch($payrollItem->id, $request->user()->accountOwnerId());
+
+        return back()->with('success', 'Payslip karyawan masuk queue pengiriman WhatsApp.');
     }
 }

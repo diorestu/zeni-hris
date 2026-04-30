@@ -1,5 +1,12 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { CalendarDays, Calculator, Coins, Filter, Sparkles } from 'lucide-react';
+import {
+    CalendarDays,
+    Calculator,
+    Coins,
+    Filter,
+    Send,
+    Sparkles,
+} from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,6 +24,7 @@ import {
     generate as generatePayroll,
     index as payrollsIndex,
     save as savePayroll,
+    sendPayslips,
 } from '@/routes/hris/payrolls';
 import type { BreadcrumbItem } from '@/types';
 
@@ -39,6 +47,7 @@ type PayrollItem = {
     id: number;
     employee_id: number;
     employee_label: string;
+    can_send_payslip: boolean;
     base_salary: string;
     allowances_total: string;
     pph21_method: string | null;
@@ -106,6 +115,10 @@ export default function PayrollPage() {
     const { period, run, items } = usePage<PageProps>().props;
 
     const [periodState, setPeriodState] = useState(period);
+    const [sendingPayslips, setSendingPayslips] = useState(false);
+    const [sendingPayslipItemIds, setSendingPayslipItemIds] = useState<
+        number[]
+    >([]);
     const generateForm = useForm({
         period,
     });
@@ -180,6 +193,43 @@ export default function PayrollPage() {
         );
     };
 
+    const handleSendPayslips = () => {
+        if (!run) {
+            return;
+        }
+
+        setSendingPayslips(true);
+
+        router.post(
+            sendPayslips.url(run.id),
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => setSendingPayslips(false),
+            },
+        );
+    };
+
+    const handleSendPayslip = (item: PayrollItem) => {
+        if (!run) {
+            return;
+        }
+
+        setSendingPayslipItemIds((current) => [...current, item.id]);
+
+        router.post(
+            `/hris/payrolls/${run.id}/items/${item.id}/send-payslip`,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () =>
+                    setSendingPayslipItemIds((current) =>
+                        current.filter((id) => id !== item.id),
+                    ),
+            },
+        );
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Payroll" />
@@ -233,9 +283,9 @@ export default function PayrollPage() {
                                     className="whitespace-nowrap"
                                 >
                                     <Calculator className="size-4" />
-                                     {generateForm.processing
-                                         ? 'Memproses...'
-                                         : 'Generate Payroll'}
+                                    {generateForm.processing
+                                        ? 'Memproses...'
+                                        : 'Generate Payroll'}
                                 </Button>
                             </div>
                             <div className="flex items-end">
@@ -250,6 +300,25 @@ export default function PayrollPage() {
                                     {run?.is_saved
                                         ? 'Payroll Tersimpan'
                                         : 'Simpan Payroll'}
+                                </Button>
+                            </div>
+                            <div className="flex items-end">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleSendPayslips}
+                                    disabled={
+                                        !run ||
+                                        !run.is_saved ||
+                                        items.length === 0 ||
+                                        sendingPayslips
+                                    }
+                                    className="whitespace-nowrap"
+                                >
+                                    <Send className="size-4" />
+                                    {sendingPayslips
+                                        ? 'Masuk queue...'
+                                        : 'Kirim Payslip WA'}
                                 </Button>
                             </div>
                         </div>
@@ -306,7 +375,7 @@ export default function PayrollPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1180px] text-sm">
+                            <table className="w-full min-w-[1320px] text-sm">
                                 <thead>
                                     <tr className="border-b text-left">
                                         <th className="sticky left-0 z-20 bg-background px-3 py-2">
@@ -325,13 +394,16 @@ export default function PayrollPage() {
                                         <th className="px-3 py-2">
                                             Take Home Pay
                                         </th>
+                                        <th className="px-3 py-2 text-right">
+                                            Aksi
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {items.length === 0 && (
                                         <tr>
                                             <td
-                                                colSpan={8}
+                                                colSpan={9}
                                                 className="px-3 py-8 text-center text-muted-foreground"
                                             >
                                                 Belum ada data payroll di
@@ -430,7 +502,8 @@ export default function PayrollPage() {
                                                             0,
                                                     ) > 0 ? (
                                                         <p className="text-xs text-muted-foreground">
-                                                            Ditanggung perusahaan:{' '}
+                                                            Ditanggung
+                                                            perusahaan:{' '}
                                                             {formatCurrency(
                                                                 item.pph21_company_borne,
                                                             )}
@@ -460,6 +533,31 @@ export default function PayrollPage() {
                                                         item.net_salary,
                                                     )}
                                                 </span>
+                                            </td>
+                                            <td className="px-3 py-3 text-right">
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={() =>
+                                                        handleSendPayslip(item)
+                                                    }
+                                                    disabled={
+                                                        !run?.is_saved ||
+                                                        !item.can_send_payslip ||
+                                                        sendingPayslipItemIds.includes(
+                                                            item.id,
+                                                        )
+                                                    }
+                                                    className="whitespace-nowrap"
+                                                >
+                                                    <Send className="size-4" />
+                                                    {sendingPayslipItemIds.includes(
+                                                        item.id,
+                                                    )
+                                                        ? 'Queue...'
+                                                        : 'Kirim WA'}
+                                                </Button>
                                             </td>
                                         </tr>
                                     ))}

@@ -1,5 +1,4 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
 import Lenis from 'lenis';
 import {
     ArrowRight,
@@ -16,6 +15,7 @@ import {
     UserCheck,
     Users,
 } from 'lucide-react';
+import { useEffect } from 'react';
 import { dashboard, login, register } from '@/routes';
 
 const modules = [

@@ -22,6 +22,19 @@ class WahaClient
     /**
      * @return array<string, mixed>
      */
+    public function sendFileToPhone(
+        string $phone,
+        string $filename,
+        string $contents,
+        string $caption = '',
+        string $mimetype = 'application/pdf',
+    ): array {
+        return $this->sendFile(WhatsAppPhone::toChatId($phone), $filename, $contents, $caption, $mimetype);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function sendText(string $chatId, string $text): array
     {
         if (! config('services.waha.enabled')) {
@@ -37,68 +50,35 @@ class WahaClient
             'session' => self::SESSION_NAME,
         ];
 
-        $response = null;
-        $lastException = null;
+        return $this->postWithRetry('/api/sendText', $payload, 'send_text', $chatId);
+    }
 
-        for ($attempt = 1; $attempt <= 3; $attempt++) {
-            try {
-                $response = $this->request()->post('/api/sendText', $payload);
-
-                if ($response->successful()) {
-                    $body = $response->json() ?? [];
-
-                    Log::info('waha.send_text.sent', [
-                        'session' => self::SESSION_NAME,
-                        'chat_id' => $chatId,
-                        'attempt' => $attempt,
-                        'message_id' => data_get($body, 'key.id'),
-                        'message_status' => data_get($body, 'status'),
-                    ]);
-
-                    return $body;
-                }
-
-                if (! $this->shouldRetryResponse($response) || $attempt === 3) {
-                    break;
-                }
-
-                Log::warning('waha.send_text.retry', [
-                    'session' => self::SESSION_NAME,
-                    'chat_id' => $chatId,
-                    'attempt' => $attempt,
-                    'status' => $response->status(),
-                    'body' => $response->json() ?? $response->body(),
-                ]);
-            } catch (ConnectionException $exception) {
-                $lastException = $exception;
-
-                if ($attempt === 3) {
-                    break;
-                }
-
-                Log::warning('waha.send_text.retry', [
-                    'session' => self::SESSION_NAME,
-                    'chat_id' => $chatId,
-                    'attempt' => $attempt,
-                    'error' => $exception->getMessage(),
-                ]);
-            }
-
-            usleep($attempt * 300000);
+    /**
+     * @return array<string, mixed>
+     */
+    public function sendFile(
+        string $chatId,
+        string $filename,
+        string $contents,
+        string $caption = '',
+        string $mimetype = 'application/pdf',
+    ): array {
+        if (! config('services.waha.enabled')) {
+            throw new RuntimeException('WAHA integration is disabled.');
         }
 
-        $snapshot = $this->sessionSnapshot();
-
-        Log::error('waha.send_text.failed', [
+        $payload = [
             'session' => self::SESSION_NAME,
-            'chat_id' => $chatId,
-            'status' => $response?->status(),
-            'body' => $response?->json() ?? $response?->body(),
-            'session_snapshot' => $snapshot,
-            'error' => $lastException?->getMessage(),
-        ]);
+            'chatId' => $chatId,
+            'caption' => $caption,
+            'file' => [
+                'mimetype' => $mimetype,
+                'filename' => $filename,
+                'data' => base64_encode($contents),
+            ],
+        ];
 
-        throw new RuntimeException('Gagal mengirim pesan WhatsApp melalui WAHA.');
+        return $this->postWithRetry('/api/sendFile', $payload, 'send_file', $chatId);
     }
 
     /**
@@ -149,6 +129,76 @@ class WahaClient
             ->acceptJson()
             ->withHeader('X-Api-Key', (string) config('services.waha.api_key'))
             ->timeout((int) config('services.waha.timeout', 15));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function postWithRetry(string $endpoint, array $payload, string $logAction, string $chatId): array
+    {
+        $response = null;
+        $lastException = null;
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            try {
+                $response = $this->request()->post($endpoint, $payload);
+
+                if ($response->successful()) {
+                    $body = $response->json() ?? [];
+
+                    Log::info('waha.'.$logAction.'.sent', [
+                        'session' => self::SESSION_NAME,
+                        'chat_id' => $chatId,
+                        'attempt' => $attempt,
+                        'message_id' => data_get($body, 'key.id'),
+                        'message_status' => data_get($body, 'status'),
+                    ]);
+
+                    return $body;
+                }
+
+                if (! $this->shouldRetryResponse($response) || $attempt === 3) {
+                    break;
+                }
+
+                Log::warning('waha.'.$logAction.'.retry', [
+                    'session' => self::SESSION_NAME,
+                    'chat_id' => $chatId,
+                    'attempt' => $attempt,
+                    'status' => $response->status(),
+                    'body' => $response->json() ?? $response->body(),
+                ]);
+            } catch (ConnectionException $exception) {
+                $lastException = $exception;
+
+                if ($attempt === 3) {
+                    break;
+                }
+
+                Log::warning('waha.'.$logAction.'.retry', [
+                    'session' => self::SESSION_NAME,
+                    'chat_id' => $chatId,
+                    'attempt' => $attempt,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+
+            usleep($attempt * 300000);
+        }
+
+        $snapshot = $this->sessionSnapshot();
+
+        Log::error('waha.'.$logAction.'.failed', [
+            'session' => self::SESSION_NAME,
+            'chat_id' => $chatId,
+            'status' => $response?->status(),
+            'body' => $response?->json() ?? $response?->body(),
+            'session_snapshot' => $snapshot,
+            'error' => $lastException?->getMessage(),
+        ]);
+
+        throw new RuntimeException('Gagal mengirim pesan WhatsApp melalui WAHA.');
     }
 
     private function shouldRetryResponse(Response $response): bool

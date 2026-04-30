@@ -1,5 +1,4 @@
 import { Head, router } from '@inertiajs/react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -31,6 +30,10 @@ type DashboardStats = {
     late_today: number;
     on_leave_today: number;
     absent_today: number;
+    open_positions: number;
+    monthly_payroll_burn: number | string;
+    attrition_ytd: number;
+    resigned_ytd: number;
     today_attendance_rate: number;
 };
 
@@ -45,6 +48,28 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
+const formatRupiahCompact = (value: number | string) => {
+    const amount = Number(value ?? 0);
+
+    if (amount >= 1_000_000_000) {
+        return `Rp ${(amount / 1_000_000_000).toLocaleString('id-ID', {
+            maximumFractionDigits: 1,
+        })} M`;
+    }
+
+    if (amount >= 1_000_000) {
+        return `Rp ${(amount / 1_000_000).toLocaleString('id-ID', {
+            maximumFractionDigits: 1,
+        })} jt`;
+    }
+
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    }).format(amount);
+};
+
 export default function Dashboard({
     stats,
     attendanceChart,
@@ -55,43 +80,73 @@ export default function Dashboard({
     filters: DashboardFilters;
 }) {
     const maxEmployees = Math.max(stats.active_employees, 1);
-    const rangeOptions: Array<{ value: DashboardFilters['range']; label: string }> =
-        [
-            { value: 'today', label: 'Hari Ini' },
-            { value: 'this_week', label: 'Minggu Ini' },
-            { value: 'this_month', label: 'Bulan Ini' },
-        ];
+    const rangeOptions: Array<{
+        value: DashboardFilters['range'];
+        label: string;
+    }> = [
+        { value: 'today', label: 'Hari Ini' },
+        { value: 'this_week', label: 'Minggu Ini' },
+        { value: 'this_month', label: 'Bulan Ini' },
+    ];
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="Dashboard" />
 
             <div className="space-y-4 p-4">
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                     <Card className="gap-2 py-2">
                         <CardHeader className="px-4 pb-0">
-                            <CardDescription>Total Karyawan</CardDescription>
+                            <CardDescription>Total Employees</CardDescription>
                             <CardTitle className="text-2xl">
                                 {stats.total_employees}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="px-4 pt-0 pb-2">
                             <p className="text-sm text-muted-foreground">
-                                Aktif: {stats.active_employees}
+                                Active: {stats.active_employees}
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card className="gap-2 py-2">
                         <CardHeader className="px-4 pb-0">
-                            <CardDescription>Divisi</CardDescription>
+                            <CardDescription>Present Today</CardDescription>
                             <CardTitle className="text-2xl">
-                                {stats.total_divisions}
+                                {stats.present_today}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="px-4 pt-0 pb-2">
                             <p className="text-sm text-muted-foreground">
-                                Jabatan: {stats.total_positions}
+                                Late: {stats.late_today}
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="gap-2 py-2">
+                        <CardHeader className="px-4 pb-0">
+                            <CardDescription>On Leave</CardDescription>
+                            <CardTitle className="text-2xl">
+                                {stats.on_leave_today}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pt-0 pb-2">
+                            <p className="text-sm text-muted-foreground">
+                                Absent: {stats.absent_today}
+                            </p>
+                        </CardContent>
+                    </Card>
+
+                    <Card className="gap-2 py-2">
+                        <CardHeader className="px-4 pb-0">
+                            <CardDescription>Open Positions</CardDescription>
+                            <CardTitle className="text-2xl">
+                                {stats.open_positions}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-4 pt-0 pb-2">
+                            <p className="text-sm text-muted-foreground">
+                                Published vacancies
                             </p>
                         </CardContent>
                     </Card>
@@ -99,34 +154,32 @@ export default function Dashboard({
                     <Card className="gap-2 py-2">
                         <CardHeader className="px-4 pb-0">
                             <CardDescription>
-                                Kehadiran Hari Ini
+                                Monthly Payroll Burn
                             </CardDescription>
                             <CardTitle className="text-2xl">
-                                {stats.today_attendance_rate}%
+                                {formatRupiahCompact(
+                                    stats.monthly_payroll_burn,
+                                )}
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="px-4 pt-0 pb-2">
                             <p className="text-sm text-muted-foreground">
-                                Hadir + terlambat dari karyawan aktif
+                                Current period net salary
                             </p>
                         </CardContent>
                     </Card>
 
                     <Card className="gap-2 py-2">
                         <CardHeader className="px-4 pb-0">
-                            <CardDescription>Status Hari Ini</CardDescription>
+                            <CardDescription>Attrition YTD</CardDescription>
                             <CardTitle className="text-2xl">
-                                {stats.present_today + stats.late_today}
+                                {stats.attrition_ytd}%
                             </CardTitle>
                         </CardHeader>
-                        <CardContent className="flex flex-wrap gap-2 px-4 pt-0 pb-2 text-xs">
-                            <Badge>Hadir: {stats.present_today}</Badge>
-                            <Badge variant="secondary">
-                                Cuti: {stats.on_leave_today}
-                            </Badge>
-                            <Badge variant="outline">
-                                Absen: {stats.absent_today}
-                            </Badge>
+                        <CardContent className="px-4 pt-0 pb-2">
+                            <p className="text-sm text-muted-foreground">
+                                Resigned: {stats.resigned_ytd}
+                            </p>
                         </CardContent>
                     </Card>
                 </div>

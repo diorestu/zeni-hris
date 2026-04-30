@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Hris\AttendanceController;
 use App\Http\Controllers\Hris\AttendanceScheduleController;
+use App\Http\Controllers\Hris\CompanyAssetController;
 use App\Http\Controllers\Hris\DivisionController;
 use App\Http\Controllers\Hris\EmployeeAllowanceController;
 use App\Http\Controllers\Hris\EmployeeBankAccountController;
@@ -77,10 +78,17 @@ Route::middleware(['auth', 'account.activated', 'admin.access'])->prefix('hris')
     Route::get('payrolls', [PayrollController::class, 'index'])->name('payrolls.index');
     Route::post('payrolls/generate', [PayrollController::class, 'generate'])->name('payrolls.generate');
     Route::post('payrolls/{payrollRun}/save', [PayrollController::class, 'save'])->name('payrolls.save');
+    Route::post('payrolls/{payrollRun}/send-payslips', [PayrollController::class, 'sendPayslips'])->name('payrolls.send-payslips');
+    Route::post('payrolls/{payrollRun}/items/{payrollItem}/send-payslip', [PayrollController::class, 'sendPayslip'])->name('payrolls.items.send-payslip');
     Route::get('kasbons', [KasbonController::class, 'index'])->name('kasbons.index');
     Route::post('kasbons', [KasbonController::class, 'store'])->name('kasbons.store');
     Route::put('kasbons/{employeeDeduction}', [KasbonController::class, 'update'])->name('kasbons.update');
     Route::delete('kasbons/{employeeDeduction}', [KasbonController::class, 'destroy'])->name('kasbons.destroy');
+
+    Route::get('assets', [CompanyAssetController::class, 'index'])->name('assets.index');
+    Route::post('assets', [CompanyAssetController::class, 'store'])->name('assets.store');
+    Route::put('assets/{companyAsset}', [CompanyAssetController::class, 'update'])->name('assets.update');
+    Route::delete('assets/{companyAsset}', [CompanyAssetController::class, 'destroy'])->name('assets.destroy');
 
     Route::get('leaves', [LeaveController::class, 'index'])->name('leaves.index');
     Route::get('leaves/export', [LeaveController::class, 'export'])->name('leaves.export');

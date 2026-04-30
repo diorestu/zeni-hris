@@ -2,13 +2,16 @@
 
 namespace Tests\Feature\Hris;
 
+use App\Jobs\SendPayslipToWhatsApp;
 use App\Models\Employee;
 use App\Models\EmployeeAllowance;
 use App\Models\EmployeeAttendance;
 use App\Models\EmployeeDeduction;
+use App\Models\PayrollItem;
 use App\Models\PayrollRun;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class PayrollGenerationTest extends TestCase
@@ -233,6 +236,127 @@ class PayrollGenerationTest extends TestCase
             'is_saved' => true,
             'saved_by' => $user->id,
         ]);
+    }
+
+    public function test_saved_payroll_payslips_can_be_queued_for_employee_whatsapp(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $run = PayrollRun::factory()->create([
+            'user_id' => $user->id,
+            'period' => '2026-02',
+            'period_start' => '2026-02-01',
+            'period_end' => '2026-02-28',
+            'is_saved' => true,
+            'saved_at' => now(),
+            'saved_by' => $user->id,
+        ]);
+
+        $items = collect(range(1, 11))->map(function (int $number) use ($run, $user): PayrollItem {
+            $employee = Employee::factory()->create([
+                'user_id' => $user->id,
+                'employee_code' => 'EMP-'.str_pad((string) $number, 3, '0', STR_PAD_LEFT),
+                'phone' => '0812345678'.str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+            ]);
+
+            return PayrollItem::query()->create([
+                'user_id' => $user->id,
+                'payroll_run_id' => $run->id,
+                'employee_id' => $employee->id,
+                'base_salary' => 5_000_000,
+                'allowances_total' => 500_000,
+                'pph21_method' => 'gross',
+                'pph21_rate' => 5,
+                'pph21_allowance' => 0,
+                'pph21_deduction' => 100_000,
+                'pph21_company_borne' => 0,
+                'kasbon_deduction' => 0,
+                'denda_deduction' => 0,
+                'deductions_total' => 100_000,
+                'net_salary' => 5_400_000,
+                'allowance_breakdown' => ['Transport' => 500_000],
+            ]);
+        });
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.send-payslips', $run))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Payslip masuk queue untuk 11 karyawan. 0 dilewati karena nomor WhatsApp tidak valid.');
+
+        Queue::assertPushed(SendPayslipToWhatsApp::class, 11);
+        Queue::assertPushed(SendPayslipToWhatsApp::class, function (SendPayslipToWhatsApp $job) use ($items, $user): bool {
+            return $job->payrollItemId === $items->last()->id
+                && $job->ownerId === $user->id
+                && $job->delay !== null
+                && now()->diffInSeconds($job->delay, false) >= 55;
+        });
+    }
+
+    public function test_single_employee_payslip_can_be_queued_for_whatsapp(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $employee = Employee::factory()->create([
+            'user_id' => $user->id,
+            'phone' => '081234567890',
+        ]);
+
+        $run = PayrollRun::factory()->create([
+            'user_id' => $user->id,
+            'period' => '2026-02',
+            'is_saved' => true,
+        ]);
+
+        $item = PayrollItem::query()->create([
+            'user_id' => $user->id,
+            'payroll_run_id' => $run->id,
+            'employee_id' => $employee->id,
+            'base_salary' => 5_000_000,
+            'allowances_total' => 500_000,
+            'deductions_total' => 100_000,
+            'net_salary' => 5_400_000,
+            'allowance_breakdown' => [],
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.items.send-payslip', [$run, $item]))
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Payslip karyawan masuk queue pengiriman WhatsApp.');
+
+        Queue::assertPushed(SendPayslipToWhatsApp::class, function (SendPayslipToWhatsApp $job) use ($item, $user): bool {
+            return $job->payrollItemId === $item->id
+                && $job->ownerId === $user->id;
+        });
+    }
+
+    public function test_unsaved_payroll_payslips_cannot_be_sent_to_whatsapp(): void
+    {
+        Queue::fake();
+
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $run = PayrollRun::factory()->create([
+            'user_id' => $user->id,
+            'period' => '2026-02',
+            'is_saved' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.send-payslips', $run))
+            ->assertRedirect()
+            ->assertSessionHas('error', 'Simpan payroll terlebih dahulu sebelum mengirim payslip ke WhatsApp.');
+
+        Queue::assertNothingPushed();
     }
 
     public function test_two_companies_can_generate_payroll_for_the_same_period(): void

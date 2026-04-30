@@ -60,4 +60,39 @@ class WahaClientTest extends TestCase
             Log::shouldHaveReceived('error')->once();
         }
     }
+
+    public function test_send_file_posts_base64_document_payload(): void
+    {
+        config()->set('services.waha.enabled', true);
+        config()->set('services.waha.base_url', 'https://waha.example.test');
+        config()->set('services.waha.api_key', 'secret');
+
+        Http::fake([
+            'https://waha.example.test/api/sendFile' => Http::response([
+                'key' => ['id' => 'file123'],
+                'status' => 'PENDING',
+            ]),
+        ]);
+
+        $result = app(WahaClient::class)->sendFileToPhone(
+            '081234567890',
+            'document.pdf',
+            'PDF contents',
+            'Caption',
+        );
+
+        $this->assertSame('PENDING', $result['status']);
+
+        Http::assertSent(function ($request): bool {
+            $payload = $request->data();
+
+            return $request->url() === 'https://waha.example.test/api/sendFile'
+                && $payload['session'] === 'ZeniConsulting'
+                && $payload['chatId'] === '6281234567890@c.us'
+                && $payload['caption'] === 'Caption'
+                && $payload['file']['mimetype'] === 'application/pdf'
+                && $payload['file']['filename'] === 'document.pdf'
+                && $payload['file']['data'] === base64_encode('PDF contents');
+        });
+    }
 }

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Division;
 use App\Models\Employee;
 use App\Models\EmployeeAttendance;
+use App\Models\JobVacancy;
+use App\Models\PayrollRun;
 use App\Models\Position;
 use App\Models\User;
 use App\Support\RoleRedirect;
@@ -44,6 +46,27 @@ class DashboardController extends Controller
         $activeEmployees = Employee::query()->where('is_active', true)->count();
         $totalDivisions = Division::query()->count();
         $totalPositions = Position::query()->count();
+        $openPositions = (int) JobVacancy::query()
+            ->where('status', 'published')
+            ->where(function ($query) use ($today): void {
+                $query->whereNull('closing_date')
+                    ->orWhereDate('closing_date', '>=', $today);
+            })
+            ->sum('openings');
+
+        $monthlyPayrollBurn = (float) (PayrollRun::query()
+            ->where('period', $today->format('Y-m'))
+            ->latest('generated_at')
+            ->value('total_net_salary') ?? 0);
+
+        $resignedYtd = Employee::query()
+            ->where('employment_status', 'resigned')
+            ->whereYear('updated_at', $today->year)
+            ->count();
+
+        $attritionYtd = ($activeEmployees + $resignedYtd) > 0
+            ? round(($resignedYtd / ($activeEmployees + $resignedYtd)) * 100, 1)
+            : 0;
 
         $todayAttendance = EmployeeAttendance::query()
             ->selectRaw('status, COUNT(*) as total')
@@ -120,6 +143,10 @@ class DashboardController extends Controller
                 'late_today' => $lateToday,
                 'on_leave_today' => $onLeaveToday,
                 'absent_today' => $absentToday,
+                'open_positions' => $openPositions,
+                'monthly_payroll_burn' => $monthlyPayrollBurn,
+                'attrition_ytd' => $attritionYtd,
+                'resigned_ytd' => $resignedYtd,
                 'today_attendance_rate' => $todayRate,
             ],
             'attendanceChart' => $attendanceChart,

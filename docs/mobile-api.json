@@ -1,0 +1,324 @@
+{
+  "title": "Mobile API",
+  "version": "v1",
+  "base_url": "/api/mobile/v1",
+  "authentication": {
+    "type": "bearer",
+    "scheme": "sanctum",
+    "header": "Authorization",
+    "format": "Bearer <token>",
+    "login_endpoint": {
+      "method": "POST",
+      "path": "/auth/login"
+    }
+  },
+  "response_pattern": {
+    "success": {
+      "status": 200,
+      "body": {
+        "success": true,
+        "message": "OK",
+        "data": {}
+      }
+    },
+    "validation_error": {
+      "status": 422,
+      "body": {
+        "message": "The given data was invalid.",
+        "errors": {
+          "field": [
+            "error message"
+          ]
+        }
+      }
+    }
+  },
+  "endpoints": [
+    {
+      "name": "Login",
+      "method": "POST",
+      "path": "/auth/login",
+      "auth_required": false,
+      "body": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "required": true,
+          "example": "user@example.com"
+        },
+        "password": {
+          "type": "string",
+          "required": true,
+          "example": "password"
+        },
+        "device_name": {
+          "type": "string",
+          "required": false,
+          "max_length": 255,
+          "example": "android-app"
+        },
+        "revoke_other_tokens": {
+          "type": "boolean",
+          "required": false,
+          "default": true,
+          "example": true
+        }
+      },
+      "response_data": {
+        "token_type": "Bearer",
+        "access_token": "string",
+        "user": {
+          "id": "integer",
+          "name": "string",
+          "email": "string",
+          "role": "string",
+          "parent_user_id": "integer|null",
+          "account_owner_id": "integer",
+          "email_verified_at": "string|null",
+          "created_at": "string|null"
+        }
+      }
+    },
+    {
+      "name": "Logout",
+      "method": "POST",
+      "path": "/auth/logout",
+      "auth_required": true
+    },
+    {
+      "name": "Me",
+      "method": "GET",
+      "path": "/auth/me",
+      "auth_required": true
+    },
+    {
+      "name": "Dashboard Summary",
+      "method": "GET",
+      "path": "/dashboard/summary",
+      "auth_required": true,
+      "query": {
+        "range": {
+          "type": "string",
+          "required": false,
+          "enum": [
+            "today",
+            "this_week",
+            "this_month"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Portal Summary",
+      "method": "GET",
+      "path": "/portal/summary",
+      "auth_required": true
+    },
+    {
+      "name": "Master Options",
+      "method": "GET",
+      "path": "/master/options",
+      "auth_required": true
+    },
+    {
+      "name": "List Employees",
+      "method": "GET",
+      "path": "/employees",
+      "auth_required": true
+    },
+    {
+      "name": "Show Employee",
+      "method": "GET",
+      "path": "/employees/{employee}",
+      "auth_required": true,
+      "path_params": {
+        "employee": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "List Attendances",
+      "method": "GET",
+      "path": "/attendances",
+      "auth_required": true
+    },
+    {
+      "name": "Create Attendance",
+      "method": "POST",
+      "path": "/attendances",
+      "auth_required": true
+    },
+    {
+      "name": "Update Attendance",
+      "method": "PUT",
+      "path": "/attendances/{employeeAttendance}",
+      "auth_required": true,
+      "path_params": {
+        "employeeAttendance": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "Delete Attendance",
+      "method": "DELETE",
+      "path": "/attendances/{employeeAttendance}",
+      "auth_required": true,
+      "path_params": {
+        "employeeAttendance": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "List Leaves",
+      "method": "GET",
+      "path": "/leaves",
+      "auth_required": true
+    },
+    {
+      "name": "Create Leave",
+      "method": "POST",
+      "path": "/leaves",
+      "auth_required": true
+    },
+    {
+      "name": "Update Leave",
+      "method": "PUT",
+      "path": "/leaves/{leave}",
+      "auth_required": true,
+      "path_params": {
+        "leave": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "Delete Leave",
+      "method": "DELETE",
+      "path": "/leaves/{leave}",
+      "auth_required": true,
+      "path_params": {
+        "leave": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "List Overtimes",
+      "method": "GET",
+      "path": "/overtimes",
+      "auth_required": true
+    },
+    {
+      "name": "Create Overtime",
+      "method": "POST",
+      "path": "/overtimes",
+      "auth_required": true
+    },
+    {
+      "name": "Update Overtime",
+      "method": "PUT",
+      "path": "/overtimes/{overtime}",
+      "auth_required": true,
+      "path_params": {
+        "overtime": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "Delete Overtime",
+      "method": "DELETE",
+      "path": "/overtimes/{overtime}",
+      "auth_required": true,
+      "path_params": {
+        "overtime": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "List Kasbons",
+      "method": "GET",
+      "path": "/kasbons",
+      "auth_required": true,
+      "query": {
+        "period": {
+          "type": "string",
+          "format": "YYYY-MM",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "Create Kasbon",
+      "method": "POST",
+      "path": "/kasbons",
+      "auth_required": true
+    },
+    {
+      "name": "Update Kasbon",
+      "method": "PUT",
+      "path": "/kasbons/{employeeDeduction}",
+      "auth_required": true,
+      "path_params": {
+        "employeeDeduction": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "Delete Kasbon",
+      "method": "DELETE",
+      "path": "/kasbons/{employeeDeduction}",
+      "auth_required": true,
+      "path_params": {
+        "employeeDeduction": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    },
+    {
+      "name": "Payroll Preview",
+      "method": "GET",
+      "path": "/payrolls/preview",
+      "auth_required": true,
+      "query": {
+        "period": {
+          "type": "string",
+          "format": "YYYY-MM",
+          "required": false
+        }
+      }
+    },
+    {
+      "name": "Generate Payroll",
+      "method": "POST",
+      "path": "/payrolls/generate",
+      "auth_required": true
+    },
+    {
+      "name": "Save Payroll",
+      "method": "POST",
+      "path": "/payrolls/{payrollRun}/save",
+      "auth_required": true,
+      "path_params": {
+        "payrollRun": {
+          "type": "integer",
+          "required": true
+        }
+      }
+    }
+  ]
+}

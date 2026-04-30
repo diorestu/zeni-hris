@@ -168,6 +168,14 @@ class Employee extends Model
     }
 
     /**
+     * Get asset assignment history for this employee.
+     */
+    public function assetAssignments(): HasMany
+    {
+        return $this->hasMany(CompanyAssetAssignment::class);
+    }
+
+    /**
      * Build a full name from first and last name.
      */
     public function getFullNameAttribute(): string

@@ -2,15 +2,11 @@ import AppLogoIcon from '@/components/app-logo-icon';
 
 export default function AppLogo() {
     return (
-        <>
-            <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-md bg-white">
-                <AppLogoIcon className="size-8 object-cover" alt="Logo aplikasi" />
-            </div>
-            <div className="ml-1 grid flex-1 text-left text-sm">
-                <span className="mb-0.5 truncate leading-tight font-semibold">
-                    {import.meta.env.VITE_APP_NAME || 'PaperTime'}
-                </span>
-            </div>
-        </>
+        <div className="flex h-8 w-28 items-center overflow-hidden">
+            <AppLogoIcon
+                className="h-8 w-full object-contain object-left"
+                alt="Logo aplikasi"
+            />
+        </div>
     );
 }

@@ -2,17 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\CompanySetting;
 use App\Models\Employee;
 use App\Models\PayrollRun;
 use App\Models\User;
+use App\Services\PayslipPdfService;
 use App\Support\RoleRedirect;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Request as HttpRequest;
 use Illuminate\Http\Response as HttpResponse;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -39,7 +37,7 @@ class UserPortalSectionController extends Controller
         return $this->renderForUser($request, 'portal/payroll', 'Payroll');
     }
 
-    public function exportPayslip(HttpRequest $request): HttpResponse|RedirectResponse
+    public function exportPayslip(HttpRequest $request, PayslipPdfService $payslipPdfService): HttpResponse|RedirectResponse
     {
         /** @var User $user */
         $user = $request->user();
@@ -84,31 +82,8 @@ class UserPortalSectionController extends Controller
         abort_unless($run !== null && $run->items->isNotEmpty(), 404);
 
         $slip = $run->items->first();
-        $companySetting = CompanySetting::query()->firstOrCreate(
-            ['user_id' => $user->accountOwnerId()],
-            [
-                'name' => 'Perusahaan',
-                'details' => null,
-            ],
-        );
 
-        $documentTitle = sprintf(
-            'Payslip_%s_%s.pdf',
-            $employee->employee_code ?: 'employee',
-            Str::replace('-', '', $period),
-        );
-
-        return Pdf::loadView('hris.payrolls.payslip', [
-            'documentTitle' => $documentTitle,
-            'companyName' => $companySetting->name,
-            'companyDetails' => $companySetting->details ?: '-',
-            'employee' => $employee->loadMissing(['division:id,name', 'position:id,name']),
-            'run' => $run,
-            'slip' => $slip,
-            'periodLabel' => $run->period_start?->locale('id')->translatedFormat('F Y') ?? $period,
-        ])
-            ->setPaper('a4')
-            ->download($documentTitle);
+        return $payslipPdfService->download($run, $slip, $user->accountOwnerId());
     }
 
     private function renderForUser(Request $request, string $page, string $title): Response|RedirectResponse

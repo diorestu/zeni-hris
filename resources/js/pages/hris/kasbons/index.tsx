@@ -1,6 +1,7 @@
 import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { CalendarDays, Filter, HandCoins, Pencil, Trash2 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import type { FormEvent } from 'react';
+import { useMemo, useState } from 'react';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import {
