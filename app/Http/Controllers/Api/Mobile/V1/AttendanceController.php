@@ -48,7 +48,7 @@ class AttendanceController extends Controller
         if (isset($validated['date'])) {
             $query->whereDate('attendance_date', $validated['date']);
         } elseif (isset($validated['period'])) {
-            $start = Carbon::createFromFormat('Y-m', $validated['period'])->startOfMonth();
+            $start = Carbon::createFromFormat('Y-m-d', $validated['period'].'-01')->startOfMonth();
             $end = $start->copy()->endOfMonth();
             $query->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()]);
         } else {

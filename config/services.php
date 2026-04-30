@@ -39,6 +39,7 @@ return [
         'enabled' => env('WAHA_ENABLED', false),
         'base_url' => env('WAHA_BASE_URL'),
         'api_key' => env('WAHA_API_KEY'),
+        'session' => env('WAHA_SESSION', 'ZeniConsulting'),
         'timeout' => env('WAHA_TIMEOUT', 15),
     ],
 

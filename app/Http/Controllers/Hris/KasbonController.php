@@ -25,7 +25,7 @@ class KasbonController extends Controller
         ]);
 
         $period = $validated['period'] ?? now()->format('Y-m');
-        $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        $start = Carbon::createFromFormat('Y-m-d', $period.'-01')->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
         $kasbons = EmployeeDeduction::query()

@@ -133,9 +133,114 @@ class PayrollGenerationTest extends TestCase
         $this->assertDatabaseHas('payroll_items', [
             'employee_id' => $employee->id,
             'pph21_method' => 'gross_up',
-            'pph21_allowance' => 200000.00,
-            'pph21_deduction' => 200000.00,
+            'pph21_allowance' => 210526.00,
+            'pph21_deduction' => 210526.00,
             'net_salary' => 4000000.00,
+        ]);
+    }
+
+    public function test_pph21_gross_up_matches_konsulin_dio_payroll_baseline(): void
+    {
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $employee = Employee::factory()->create([
+            'user_id' => $user->id,
+            'first_name' => 'Dio Restu Saputra',
+            'last_name' => null,
+            'base_salary' => 6_500_000,
+            'pph21_method' => 'gross_up',
+            'pph21_rate' => 1,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        EmployeeAllowance::query()->create([
+            'user_id' => $user->id,
+            'employee_id' => $employee->id,
+            'name' => 'Tunjangan Jabatan',
+            'amount' => 500_000,
+            'is_active' => true,
+            'effective_start_date' => '2026-04-01',
+        ]);
+
+        EmployeeAllowance::query()->create([
+            'user_id' => $user->id,
+            'employee_id' => $employee->id,
+            'name' => 'Tunjangan Kinerja',
+            'amount' => 300_000,
+            'is_active' => true,
+            'effective_start_date' => '2026-04-01',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-04',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-04']));
+
+        $this->assertDatabaseHas('payroll_items', [
+            'employee_id' => $employee->id,
+            'base_salary' => 6500000.00,
+            'allowances_total' => 800000.00,
+            'pph21_method' => 'gross_up',
+            'pph21_rate' => 1.00,
+            'pph21_allowance' => 73737.00,
+            'pph21_deduction' => 73737.00,
+            'deductions_total' => 73737.00,
+            'net_salary' => 7300000.00,
+        ]);
+    }
+
+    public function test_pph21_gross_up_uses_minimum_floor_rupiah_tax_allowance(): void
+    {
+        $user = User::factory()->create([
+            'email_verified_at' => now(),
+        ]);
+
+        $employee = Employee::factory()->create([
+            'user_id' => $user->id,
+            'first_name' => 'Anisha Taniawati',
+            'last_name' => null,
+            'base_salary' => 12_000_000,
+            'pph21_method' => 'gross_up',
+            'pph21_rate' => 6,
+            'is_active' => true,
+            'employment_status' => 'active',
+        ]);
+
+        EmployeeAllowance::query()->create([
+            'user_id' => $user->id,
+            'employee_id' => $employee->id,
+            'name' => 'Tunjangan Jabatan',
+            'amount' => 1_000_000,
+            'is_active' => true,
+            'effective_start_date' => '2026-04-01',
+        ]);
+
+        EmployeeAllowance::query()->create([
+            'user_id' => $user->id,
+            'employee_id' => $employee->id,
+            'name' => 'Tunjangan Kinerja',
+            'amount' => 1_000_000,
+            'is_active' => true,
+            'effective_start_date' => '2026-04-01',
+        ]);
+
+        $this->actingAs($user)
+            ->post(route('hris.payrolls.generate'), [
+                'period' => '2026-04',
+            ])
+            ->assertRedirect(route('hris.payrolls.index', ['period' => '2026-04']));
+
+        $this->assertDatabaseHas('payroll_items', [
+            'employee_id' => $employee->id,
+            'pph21_method' => 'gross_up',
+            'pph21_rate' => 6.00,
+            'pph21_allowance' => 893616.00,
+            'pph21_deduction' => 893616.00,
+            'net_salary' => 14000000.00,
         ]);
     }
 

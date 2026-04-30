@@ -30,7 +30,7 @@ class AttendanceScheduleController extends Controller
             ])
             ->all();
 
-        $monthStart = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
+        $monthStart = Carbon::createFromFormat('Y-m-d', $validated['month'].'-01')->startOfMonth();
         $monthEnd = $monthStart->copy()->endOfMonth();
 
         $rows = collect($validated['entries'])

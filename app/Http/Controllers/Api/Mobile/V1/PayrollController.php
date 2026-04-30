@@ -10,6 +10,7 @@ use App\Models\Employee;
 use App\Models\EmployeeAttendance;
 use App\Models\PayrollRun;
 use App\Models\User;
+use App\Support\PayrollTax;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -40,7 +41,7 @@ class PayrollController extends Controller
     {
         $ownerId = $request->user()->accountOwnerId();
         $period = $request->validated('period');
-        $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        $start = Carbon::createFromFormat('Y-m-d', $period.'-01')->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
         $employees = Employee::query()
@@ -126,20 +127,20 @@ class PayrollController extends Controller
                 $pph21CompanyBorne = 0;
 
                 if ($pph21Method === 'gross') {
-                    $pph21Deduction = round($taxableGross * $pph21RateFraction, 2);
+                    $pph21Deduction = PayrollTax::floorRupiah($taxableGross * $pph21RateFraction);
                 }
 
                 if ($pph21Method === 'net') {
-                    $pph21CompanyBorne = round($taxableGross * $pph21RateFraction, 2);
+                    $pph21CompanyBorne = PayrollTax::floorRupiah($taxableGross * $pph21RateFraction);
                 }
 
                 if ($pph21Method === 'gross_up') {
-                    $pph21Allowance = round($taxableGross * $pph21RateFraction, 2);
+                    $pph21Allowance = PayrollTax::grossUpAllowance($taxableGross, $pph21RateFraction);
                     $pph21Deduction = $pph21Allowance;
                 }
 
                 if ($pph21Method === 'ter_harian') {
-                    $pph21Deduction = round($taxableGross * $pph21RateFraction, 2);
+                    $pph21Deduction = PayrollTax::floorRupiah($taxableGross * $pph21RateFraction);
                 }
 
                 $kasbonDeduction = round((float) $employee->deductions

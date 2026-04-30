@@ -66,7 +66,7 @@ class ScheduleController extends Controller
         $ownerId = $request->user()->accountOwnerId();
         $shiftTemplates = $this->shiftTemplates($ownerId);
 
-        $monthStart = Carbon::createFromFormat('Y-m', $validated['month'])->startOfMonth();
+        $monthStart = Carbon::createFromFormat('Y-m-d', $validated['month'].'-01')->startOfMonth();
         $monthEnd = $monthStart->copy()->endOfMonth();
 
         $rows = collect($validated['entries'])
@@ -195,7 +195,7 @@ class ScheduleController extends Controller
             return [];
         }
 
-        $start = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+        $start = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
         $existing = EmployeeSchedule::query()

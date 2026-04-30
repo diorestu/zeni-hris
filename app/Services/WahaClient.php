@@ -12,7 +12,7 @@ use RuntimeException;
 
 class WahaClient
 {
-    private const SESSION_NAME = 'ZeniConsulting';
+    private ?string $resolvedSessionName = null;
 
     public function sendTextToPhone(string $phone, string $text): array
     {
@@ -47,7 +47,7 @@ class WahaClient
             'text' => $text,
             'linkPreview' => true,
             'linkPreviewHighQuality' => false,
-            'session' => self::SESSION_NAME,
+            'session' => $this->sessionName(),
         ];
 
         return $this->postWithRetry('/api/sendText', $payload, 'send_text', $chatId);
@@ -68,7 +68,7 @@ class WahaClient
         }
 
         $payload = [
-            'session' => self::SESSION_NAME,
+            'session' => $this->sessionName(),
             'chatId' => $chatId,
             'caption' => $caption,
             'file' => [
@@ -108,15 +108,15 @@ class WahaClient
             }
 
             foreach ($sessions as $session) {
-                if (($session['name'] ?? null) === self::SESSION_NAME) {
+                if (($session['name'] ?? null) === $this->sessionName()) {
                     return $session;
                 }
             }
 
-            return ['name' => self::SESSION_NAME, 'status' => 'NOT_FOUND'];
+            return ['name' => $this->sessionName(), 'status' => 'NOT_FOUND'];
         } catch (ConnectionException $exception) {
             return [
-                'name' => self::SESSION_NAME,
+                'name' => $this->sessionName(),
                 'status' => 'UNREACHABLE',
                 'error' => $exception->getMessage(),
             ];
@@ -125,10 +125,15 @@ class WahaClient
 
     private function request(): PendingRequest
     {
-        return Http::baseUrl((string) config('services.waha.base_url'))
+        $request = Http::baseUrl((string) config('services.waha.base_url'))
             ->acceptJson()
-            ->withHeader('X-Api-Key', (string) config('services.waha.api_key'))
             ->timeout((int) config('services.waha.timeout', 15));
+
+        if (config('services.waha.api_key')) {
+            $request = $request->withHeader('X-Api-Key', (string) config('services.waha.api_key'));
+        }
+
+        return $request;
     }
 
     /**
@@ -148,7 +153,7 @@ class WahaClient
                     $body = $response->json() ?? [];
 
                     Log::info('waha.'.$logAction.'.sent', [
-                        'session' => self::SESSION_NAME,
+                        'session' => $this->sessionName(),
                         'chat_id' => $chatId,
                         'attempt' => $attempt,
                         'message_id' => data_get($body, 'key.id'),
@@ -163,7 +168,7 @@ class WahaClient
                 }
 
                 Log::warning('waha.'.$logAction.'.retry', [
-                    'session' => self::SESSION_NAME,
+                    'session' => $this->sessionName(),
                     'chat_id' => $chatId,
                     'attempt' => $attempt,
                     'status' => $response->status(),
@@ -177,7 +182,7 @@ class WahaClient
                 }
 
                 Log::warning('waha.'.$logAction.'.retry', [
-                    'session' => self::SESSION_NAME,
+                    'session' => $this->sessionName(),
                     'chat_id' => $chatId,
                     'attempt' => $attempt,
                     'error' => $exception->getMessage(),
@@ -190,7 +195,7 @@ class WahaClient
         $snapshot = $this->sessionSnapshot();
 
         Log::error('waha.'.$logAction.'.failed', [
-            'session' => self::SESSION_NAME,
+            'session' => $this->sessionName(),
             'chat_id' => $chatId,
             'status' => $response?->status(),
             'body' => $response?->json() ?? $response?->body(),
@@ -204,5 +209,55 @@ class WahaClient
     private function shouldRetryResponse(Response $response): bool
     {
         return $response->serverError() || $response->status() === 429;
+    }
+
+    private function sessionName(): string
+    {
+        if ($this->resolvedSessionName !== null) {
+            return $this->resolvedSessionName;
+        }
+
+        $configuredSession = (string) (config('services.waha.session') ?: 'default');
+
+        if ($configuredSession !== 'default') {
+            return $this->resolvedSessionName = $configuredSession;
+        }
+
+        if (! config('services.waha.enabled')) {
+            return $this->resolvedSessionName = $configuredSession;
+        }
+
+        try {
+            $response = $this->request()->get('/api/sessions', ['all' => 'false']);
+
+            if (! $response->successful()) {
+                return $this->resolvedSessionName = $configuredSession;
+            }
+
+            $sessions = $response->json();
+
+            if (! is_array($sessions)) {
+                return $this->resolvedSessionName = $configuredSession;
+            }
+
+            foreach ($sessions as $session) {
+                $name = $session['name'] ?? null;
+                $status = strtoupper((string) ($session['status'] ?? ''));
+
+                if (is_string($name) && in_array($status, ['WORKING', 'CONNECTED', 'STARTING', 'SCAN_QR_CODE'], true)) {
+                    return $this->resolvedSessionName = $name;
+                }
+            }
+
+            $firstName = data_get($sessions, '0.name');
+
+            if (is_string($firstName) && $firstName !== '') {
+                return $this->resolvedSessionName = $firstName;
+            }
+        } catch (ConnectionException) {
+            return $this->resolvedSessionName = $configuredSession;
+        }
+
+        return $this->resolvedSessionName = $configuredSession;
     }
 }

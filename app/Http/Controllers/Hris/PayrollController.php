@@ -10,6 +10,7 @@ use App\Models\EmployeeAttendance;
 use App\Models\EmployeeDeduction;
 use App\Models\PayrollItem;
 use App\Models\PayrollRun;
+use App\Support\PayrollTax;
 use App\Support\WhatsAppPhone;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -88,7 +89,7 @@ class PayrollController extends Controller
     {
         $ownerId = $request->user()->accountOwnerId();
         $period = $request->validated('period');
-        $start = Carbon::createFromFormat('Y-m', $period)->startOfMonth();
+        $start = Carbon::createFromFormat('Y-m-d', $period.'-01')->startOfMonth();
         $end = $start->copy()->endOfMonth();
 
         $employees = Employee::query()
@@ -151,6 +152,8 @@ class PayrollController extends Controller
 
                 if ($pph21Method === 'ter_harian') {
                     $workingDays = EmployeeAttendance::query()
+                        ->withoutGlobalScopes()
+                        ->where('user_id', $employee->user_id)
                         ->where('employee_id', $employee->id)
                         ->whereBetween('attendance_date', [$start->toDateString(), $end->toDateString()])
                         ->whereIn('status', ['present', 'late'])
@@ -169,45 +172,41 @@ class PayrollController extends Controller
                     ? round(($dailyBase + $dailyAllowance) * $workingDays, 2)
                     : round($baseSalary + $allowancesTotal, 2);
 
-                // Get PTKP value from config
-                $ptkpConfig = config('ptkp.categories');
-                $ptkpCategory = (string) ($employee->ptkp_category ?? 'TK/0');
-                $ptkpMonthly = (float) ($ptkpConfig[$ptkpCategory]['monthly'] ?? 0);
-
-                // Calculate taxable income after PTKP deduction
-                $taxableIncome = max($taxableGross - $ptkpMonthly, 0);
-
                 $pph21Allowance = 0;
                 $pph21Deduction = 0;
                 $pph21CompanyBorne = 0;
 
                 if ($pph21Method === 'gross') {
-                    $pph21Deduction = floor($taxableIncome * $pph21RateFraction * 100) / 100;
+                    $pph21Deduction = PayrollTax::floorRupiah($taxableGross * $pph21RateFraction);
                 }
 
                 if ($pph21Method === 'net') {
-                    $pph21CompanyBorne = floor($taxableIncome * $pph21RateFraction * 100) / 100;
+                    $pph21CompanyBorne = PayrollTax::floorRupiah($taxableGross * $pph21RateFraction);
                 }
 
                 if ($pph21Method === 'gross_up') {
-                    // Gross-up: allowance covers the tax
-                    // PPh21_allowance = taxable_gross * rate / (1 - rate)
-                    if ($pph21RateFraction > 0 && $pph21RateFraction < 1) {
-                        $pph21Allowance = floor($taxableGross * $pph21RateFraction / (1 - $pph21RateFraction) * 100) / 100;
-                        $pph21Deduction = $pph21Allowance;
-                    }
+                    $pph21Allowance = PayrollTax::grossUpAllowance($taxableGross, $pph21RateFraction);
+                    $pph21Deduction = $pph21Allowance;
                 }
 
                 if ($pph21Method === 'ter_harian') {
-                    $pph21Deduction = floor($taxableIncome * $pph21RateFraction * 100) / 100;
+                    $pph21Deduction = PayrollTax::floorRupiah($taxableGross * $pph21RateFraction);
                 }
 
-                $kasbonDeduction = round((float) EmployeeDeduction::where('employee_id', $employee->id)
+                $kasbonDeduction = round((float) EmployeeDeduction::query()
+                    ->withoutGlobalScopes()
+                    ->where('user_id', $employee->user_id)
+                    ->where('employee_id', $employee->id)
                     ->where('type', 'kasbon')
+                    ->whereBetween('deduction_date', [$start->toDateString(), $end->toDateString()])
                     ->sum('amount'), 2);
 
-                $dendaDeduction = round((float) EmployeeDeduction::where('employee_id', $employee->id)
+                $dendaDeduction = round((float) EmployeeDeduction::query()
+                    ->withoutGlobalScopes()
+                    ->where('user_id', $employee->user_id)
+                    ->where('employee_id', $employee->id)
                     ->where('type', 'denda')
+                    ->whereBetween('deduction_date', [$start->toDateString(), $end->toDateString()])
                     ->sum('amount'), 2);
 
                 $deductionsTotal = round($kasbonDeduction + $dendaDeduction + $pph21Deduction, 2);
